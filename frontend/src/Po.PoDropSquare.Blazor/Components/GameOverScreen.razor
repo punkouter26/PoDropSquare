@@ -1,0 +1,677 @@
+@using Po.PoDropSquare.Blazor.Models
+
+<div class="game-over-screen @(IsVisible ? "visible" : "hidden")">
+    <div class="game-over-content">
+        <div class="game-over-header">
+            @if (IsVictory)
+            {
+                <div class="victory-animation">
+                    <h1 class="game-over-title victory">
+                        <span class="celebration-icon">🎉</span>
+                        Victory!
+                        <span class="celebration-icon">🎉</span>
+                    </h1>
+                    <p class="game-over-subtitle">Congratulations! You reached the goal!</p>
+                </div>
+            }
+            else if (IsTimeUp)
+            {
+                <div class="timeout-animation">
+                    <h1 class="game-over-title timeout">
+                        <span class="time-icon">⏰</span>
+                        Time's Up!
+                    </h1>
+                    <p class="game-over-subtitle">Game over - you ran out of time!</p>
+                </div>
+            }
+            else
+            {
+                <div class="game-over-animation">
+                    <h1 class="game-over-title">
+                        <span class="game-over-icon">💫</span>
+                        Game Over
+                    </h1>
+                    <p class="game-over-subtitle">Better luck next time!</p>
+                </div>
+            }
+        </div>
+
+        <div class="final-stats">
+            <div class="stats-grid">
+                <div class="stat-card primary">
+                    <div class="stat-icon">🏆</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Final Score</div>
+                        <div class="stat-value">@FinalScore.ToString("N0")</div>
+                    </div>
+                </div>
+
+                @if (GameDuration.HasValue)
+                {
+                    <div class="stat-card">
+                        <div class="stat-icon">⏱️</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Game Time</div>
+                            <div class="stat-value">@FormatDuration(GameDuration.Value)</div>
+                        </div>
+                    </div>
+                }
+
+                @if (Rank.HasValue)
+                {
+                    <div class="stat-card @(Rank <= 3 ? "highlight" : "")">
+                        <div class="stat-icon">@GetRankIcon(Rank.Value)</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Your Rank</div>
+                            <div class="stat-value">#@Rank</div>
+                        </div>
+                    </div>
+                }
+
+                @if (BlocksDropped > 0)
+                {
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Blocks Dropped</div>
+                            <div class="stat-value">@BlocksDropped</div>
+                        </div>
+                    </div>
+                }
+
+                @if (LinesCleared > 0)
+                {
+                    <div class="stat-card">
+                        <div class="stat-icon">✨</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Lines Cleared</div>
+                            <div class="stat-value">@LinesCleared</div>
+                        </div>
+                    </div>
+                }
+
+                @if (BestCombo > 1)
+                {
+                    <div class="stat-card">
+                        <div class="stat-icon">🔥</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Best Combo</div>
+                            <div class="stat-value">@BestCombo</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (IsNewHighScore)
+        {
+            <div class="achievement-banner">
+                <div class="achievement-content">
+                    <span class="achievement-icon">🌟</span>
+                    <span class="achievement-text">New High Score!</span>
+                    <span class="achievement-icon">🌟</span>
+                </div>
+            </div>
+        }
+
+        @if (ShowPersonalBest && PersonalBest.HasValue && PersonalBest.Value < FinalScore)
+        {
+            <div class="personal-best-banner">
+                <div class="personal-best-content">
+                    <span class="pb-icon">🎯</span>
+                    <span class="pb-text">Personal Best! Previous: @PersonalBest.Value.ToString("N0")</span>
+                </div>
+            </div>
+        }
+
+        <div class="game-over-actions">
+            <div class="primary-actions">
+                <button class="action-btn primary large" @onclick="OnPlayAgainClicked">
+                    <span class="btn-icon">🎮</span>
+                    <span class="btn-text">Play Again</span>
+                </button>
+
+                @if (ShowSaveScore && !ScoreAlreadySaved)
+                {
+                    <button class="action-btn secondary large" @onclick="OnSaveScoreClicked">
+                        <span class="btn-icon">💾</span>
+                        <span class="btn-text">Save Score</span>
+                    </button>
+                }
+            </div>
+
+            <div class="secondary-actions">
+                <button class="action-btn tertiary" @onclick="OnViewLeaderboardClicked">
+                    <span class="btn-icon">🏆</span>
+                    <span class="btn-text">Leaderboard</span>
+                </button>
+
+                <button class="action-btn tertiary" @onclick="OnShareScoreClicked">
+                    <span class="btn-icon">📤</span>
+                    <span class="btn-text">Share</span>
+                </button>
+
+                @if (ShowMainMenu)
+                {
+                    <button class="action-btn tertiary" @onclick="OnMainMenuClicked">
+                        <span class="btn-icon">🏠</span>
+                        <span class="btn-text">Main Menu</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        @if (ShowTips && GameTips?.Any() == true)
+        {
+            <div class="game-tips">
+                <h4 class="tips-title">💡 Game Tips</h4>
+                <div class="tips-content">
+                    @foreach (var tip in GameTips.Take(2))
+                    {
+                        <div class="tip-item">
+                            <span class="tip-bullet">•</span>
+                            <span class="tip-text">@tip</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (ShowBackground)
+    {
+        <div class="background-particles">
+            @for (int i = 0; i < 20; i++)
+            {
+                <div class="particle" style="animation-delay: @(i * 0.1)s;"></div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; } = false;
+    [Parameter] public bool IsVictory { get; set; } = false;
+    [Parameter] public bool IsTimeUp { get; set; } = false;
+    [Parameter] public int FinalScore { get; set; }
+    [Parameter] public TimeSpan? GameDuration { get; set; }
+    [Parameter] public int? Rank { get; set; }
+    [Parameter] public int BlocksDropped { get; set; }
+    [Parameter] public int LinesCleared { get; set; }
+    [Parameter] public int BestCombo { get; set; } = 0;
+    [Parameter] public bool IsNewHighScore { get; set; } = false;
+    [Parameter] public bool ShowPersonalBest { get; set; } = true;
+    [Parameter] public int? PersonalBest { get; set; }
+    [Parameter] public bool ShowSaveScore { get; set; } = true;
+    [Parameter] public bool ScoreAlreadySaved { get; set; } = false;
+    [Parameter] public bool ShowMainMenu { get; set; } = true;
+    [Parameter] public bool ShowTips { get; set; } = true;
+    [Parameter] public bool ShowBackground { get; set; } = true;
+    [Parameter] public List<string>? GameTips { get; set; }
+    [Parameter] public EventCallback OnPlayAgain { get; set; }
+    [Parameter] public EventCallback OnSaveScore { get; set; }
+    [Parameter] public EventCallback OnViewLeaderboard { get; set; }
+    [Parameter] public EventCallback OnShareScore { get; set; }
+    [Parameter] public EventCallback OnMainMenu { get; set; }
+
+    protected override void OnInitialized()
+    {
+        // Initialize default game tips if none provided
+        GameTips ??= new List<string>
+        {
+            "Try to plan your moves ahead to create combos",
+            "Use the arrow keys for precise positioning",
+            "Clear multiple lines at once for bonus points",
+            "Practice makes perfect - keep playing to improve!"
+        };
+    }
+
+    private async Task OnPlayAgainClicked()
+    {
+        await OnPlayAgain.InvokeAsync();
+    }
+
+    private async Task OnSaveScoreClicked()
+    {
+        await OnSaveScore.InvokeAsync();
+    }
+
+    private async Task OnViewLeaderboardClicked()
+    {
+        await OnViewLeaderboard.InvokeAsync();
+    }
+
+    private async Task OnShareScoreClicked()
+    {
+        await OnShareScore.InvokeAsync();
+    }
+
+    private async Task OnMainMenuClicked()
+    {
+        await OnMainMenu.InvokeAsync();
+    }
+
+    private string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalHours >= 1)
+            return $"{(int)duration.TotalHours}:{duration.Minutes:D2}:{duration.Seconds:D2}";
+        else
+            return $"{duration.Minutes:D2}:{duration.Seconds:D2}";
+    }
+
+    private string GetRankIcon(int rank) => rank switch
+    {
+        1 => "🥇",
+        2 => "🥈",
+        3 => "🥉",
+        <= 10 => "🏆",
+        _ => "📊"
+    };
+}
+
+<style>
+    .game-over-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(26, 26, 26, 0.95), rgba(42, 42, 42, 0.95));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(10px);
+        transition: all 0.5s ease;
+    }
+
+    .game-over-screen.hidden {
+        opacity: 0;
+        pointer-events: none;
+        transform: scale(0.9);
+    }
+
+    .game-over-screen.visible {
+        opacity: 1;
+        pointer-events: all;
+        transform: scale(1);
+    }
+
+    .game-over-content {
+        background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        max-width: 600px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        text-align: center;
+        position: relative;
+        animation: slideInUp 0.6s ease-out;
+    }
+
+    .game-over-header {
+        margin-bottom: 2rem;
+    }
+
+    .game-over-title {
+        margin: 0 0 1rem 0;
+        font-size: 3rem;
+        font-weight: bold;
+        text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    .game-over-title.victory {
+        background: linear-gradient(45deg, #FFD700, #FFA500);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: victoryGlow 2s ease-in-out infinite;
+    }
+
+    .game-over-title.timeout {
+        color: #FF6B6B;
+        animation: timeoutPulse 1s ease-in-out infinite;
+    }
+
+    .game-over-title:not(.victory):not(.timeout) {
+        color: #fff;
+    }
+
+    .celebration-icon {
+        animation: bounce 1s ease-in-out infinite;
+        margin: 0 0.5rem;
+    }
+
+    .time-icon, .game-over-icon {
+        margin-right: 0.5rem;
+    }
+
+    .game-over-subtitle {
+        color: #ccc;
+        font-size: 1.2rem;
+        margin: 0;
+    }
+
+    .final-stats {
+        margin-bottom: 2rem;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .stat-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .stat-card.primary {
+        border-color: #4CAF50;
+        background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.05));
+    }
+
+    .stat-card.highlight {
+        border-color: #FFD700;
+        background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 215, 0, 0.05));
+    }
+
+    .stat-icon {
+        font-size: 1.5rem;
+        min-width: 24px;
+    }
+
+    .stat-content {
+        text-align: left;
+        flex: 1;
+    }
+
+    .stat-label {
+        color: #999;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-value {
+        color: #fff;
+        font-size: 1.2rem;
+        font-weight: bold;
+    }
+
+    .achievement-banner, .personal-best-banner {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        border-radius: 12px;
+        animation: achievementGlow 2s ease-in-out infinite;
+    }
+
+    .achievement-banner {
+        background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 152, 0, 0.1));
+        border: 2px solid #FFD700;
+    }
+
+    .personal-best-banner {
+        background: linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(76, 175, 80, 0.1));
+        border: 2px solid #4CAF50;
+    }
+
+    .achievement-content, .personal-best-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .achievement-text, .pb-text {
+        color: #fff;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+
+    .achievement-icon, .pb-icon {
+        font-size: 1.3rem;
+        animation: pulse 1s ease-in-out infinite;
+    }
+
+    .game-over-actions {
+        margin-bottom: 2rem;
+    }
+
+    .primary-actions {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .secondary-actions {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .action-btn {
+        border: none;
+        border-radius: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-decoration: none;
+        font-family: inherit;
+    }
+
+    .action-btn.large {
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        min-width: 160px;
+    }
+
+    .action-btn:not(.large) {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.95rem;
+    }
+
+    .action-btn.primary {
+        background: linear-gradient(135deg, #4CAF50, #45a049);
+        color: white;
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    }
+
+    .action-btn.primary:hover {
+        background: linear-gradient(135deg, #45a049, #3d8b40);
+        transform: translateY(-3px);
+        box-shadow: 0 6px 25px rgba(76, 175, 80, 0.4);
+    }
+
+    .action-btn.secondary {
+        background: linear-gradient(135deg, #2196F3, #1976D2);
+        color: white;
+        box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+    }
+
+    .action-btn.secondary:hover {
+        background: linear-gradient(135deg, #1976D2, #1565C0);
+        transform: translateY(-3px);
+        box-shadow: 0 6px 25px rgba(33, 150, 243, 0.4);
+    }
+
+    .action-btn.tertiary {
+        background: rgba(255, 255, 255, 0.1);
+        color: #ccc;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .action-btn.tertiary:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+        transform: translateY(-2px);
+    }
+
+    .btn-icon {
+        font-size: 1.1em;
+    }
+
+    .game-tips {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .tips-title {
+        margin: 0 0 1rem 0;
+        color: #4CAF50;
+        font-size: 1.1rem;
+    }
+
+    .tips-content {
+        text-align: left;
+    }
+
+    .tip-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .tip-bullet {
+        color: #4CAF50;
+        font-weight: bold;
+        margin-top: 0.1rem;
+    }
+
+    .tip-text {
+        color: #ccc;
+        line-height: 1.4;
+    }
+
+    .background-particles {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+        overflow: hidden;
+        z-index: -1;
+    }
+
+    .particle {
+        position: absolute;
+        width: 4px;
+        height: 4px;
+        background: rgba(76, 175, 80, 0.6);
+        border-radius: 50%;
+        animation: float 3s ease-in-out infinite;
+    }
+
+    .particle:nth-child(odd) {
+        background: rgba(33, 150, 243, 0.6);
+        animation-duration: 4s;
+    }
+
+    .particle:nth-child(3n) {
+        background: rgba(255, 215, 0, 0.6);
+        animation-duration: 5s;
+    }
+
+    /* Animations */
+    
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    
+        50% { filter: brightness(1.2) drop-shadow(0 0 20px rgba(255, 215, 0, 0.8)); }
+    }
+
+    
+        50% { opacity: 0.7; }
+    }
+
+    
+        40% { transform: translateY(-10px); }
+        60% { transform: translateY(-5px); }
+    }
+
+    
+        50% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.6); }
+    }
+
+    
+        50% { transform: scale(1.1); }
+    }
+
+    
+        10%, 90% {
+            opacity: 1;
+        }
+        50% {
+            transform: translateY(-10px) translateX(20px);
+            opacity: 1;
+        }
+    }
+
+    /* Responsive design */
+    
+        
+        .stats-grid {
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.75rem;
+        }
+        
+        .stat-card {
+            padding: 0.75rem;
+            flex-direction: column;
+            text-align: center;
+        }
+        
+        .stat-content {
+            text-align: center;
+        }
+        
+        .primary-actions, .secondary-actions {
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .action-btn.large {
+            min-width: 200px;
+        }
+    }
+
+    
+        
+        .action-btn {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+</style>
+

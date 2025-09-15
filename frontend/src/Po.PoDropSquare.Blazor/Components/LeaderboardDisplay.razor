@@ -1,0 +1,555 @@
+@using Po.PoDropSquare.Blazor.Models
+@using System.Net.Http.Json
+@inject HttpClient Http
+@implements IDisposable
+
+<div class="leaderboard-container @(IsCompact ? "compact" : "")">
+    <div class="leaderboard-header">
+        <h3 class="leaderboard-title">
+            @if (ShowIcon)
+            {
+                <span class="trophy-icon">🏆</span>
+            }
+            @Title
+        </h3>
+        
+        @if (ShowRefreshButton)
+        {
+            <button class="refresh-btn" @onclick="RefreshLeaderboard" disabled="@IsLoading">
+                <span class="refresh-icon @(IsLoading ? "spinning" : "")">🔄</span>
+            </button>
+        }
+    </div>
+
+    <div class="leaderboard-content">
+        @if (IsLoading)
+        {
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>Loading leaderboard...</p>
+            </div>
+        }
+        else if (HasError)
+        {
+            <div class="error-state">
+                <span class="error-icon">⚠️</span>
+                <p>@ErrorMessage</p>
+                <button class="retry-btn" @onclick="RefreshLeaderboard">Try Again</button>
+            </div>
+        }
+        else if (Entries?.Any() == true)
+        {
+            <div class="leaderboard-list">
+                @foreach (var entry in Entries.Take(MaxEntries))
+                {
+                    <div class="leaderboard-entry @(entry.IsCurrentPlayer ? "current-player" : "") @GetRankCssClass(entry.Rank)">
+                        <div class="rank">
+                            @if (entry.Rank <= 3)
+                            {
+                                <span class="medal">@GetMedalIcon(entry.Rank)</span>
+                            }
+                            else
+                            {
+                                <span class="rank-number">#@entry.Rank</span>
+                            }
+                        </div>
+                        
+                        <div class="player-info">
+                            <div class="player-name">
+                                @entry.PlayerName
+                                @if (entry.IsCurrentPlayer)
+                                {
+                                    <span class="current-indicator">(You)</span>
+                                }
+                            </div>
+                            
+                            @if (!IsCompact)
+                            {
+                                <div class="game-details">
+                                    <span class="game-time">⏱️ @FormatDuration(entry.GameDuration)</span>
+                                    <span class="achieved-date">📅 @FormatDate(entry.AchievedAt)</span>
+                                </div>
+                            }
+                        </div>
+                        
+                        <div class="score">
+                            <span class="score-value">@entry.Score.ToString("N0")</span>
+                            @if (!IsCompact)
+                            {
+                                <span class="score-label">points</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+            
+            @if (ShowPlayerRank && CurrentPlayerRank.HasValue && CurrentPlayerRank > MaxEntries)
+            {
+                <div class="player-rank-indicator">
+                    <div class="separator">...</div>
+                    <div class="current-player-rank">
+                        Your rank: #@CurrentPlayerRank (@CurrentPlayerScore points)
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <span class="empty-icon">🎯</span>
+                <p>No scores yet!</p>
+                <p class="empty-subtitle">Be the first to set a high score!</p>
+            </div>
+        }
+    </div>
+
+    @if (ShowLastUpdated && LastUpdated.HasValue)
+    {
+        <div class="last-updated">
+            Last updated: @FormatLastUpdated(LastUpdated.Value)
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Top Players";
+    [Parameter] public int MaxEntries { get; set; } = 10;
+    [Parameter] public bool IsCompact { get; set; } = false;
+    [Parameter] public bool ShowIcon { get; set; } = true;
+    [Parameter] public bool ShowRefreshButton { get; set; } = true;
+    [Parameter] public bool ShowLastUpdated { get; set; } = true;
+    [Parameter] public bool ShowPlayerRank { get; set; } = true;
+    [Parameter] public bool AutoRefresh { get; set; } = false;
+    [Parameter] public int AutoRefreshInterval { get; set; } = 30000; // 30 seconds
+    [Parameter] public string? CurrentPlayerName { get; set; }
+    [Parameter] public EventCallback<LeaderboardEntry> OnEntryClicked { get; set; }
+    [Parameter] public EventCallback<List<LeaderboardEntry>> OnLeaderboardLoaded { get; set; }
+
+    private List<LeaderboardEntry>? Entries { get; set; }
+    private bool IsLoading { get; set; } = false;
+    private bool HasError { get; set; } = false;
+    private string ErrorMessage { get; set; } = string.Empty;
+    private DateTime? LastUpdated { get; set; }
+    private Timer? _autoRefreshTimer;
+    private bool _disposed = false;
+    
+    private int? CurrentPlayerRank => Entries?.FirstOrDefault(e => e.IsCurrentPlayer)?.Rank;
+    private int CurrentPlayerScore => Entries?.FirstOrDefault(e => e.IsCurrentPlayer)?.Score ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshLeaderboard();
+        
+        if (AutoRefresh)
+        {
+            _autoRefreshTimer = new Timer(async _ => await RefreshLeaderboard(), null, 
+                TimeSpan.FromMilliseconds(AutoRefreshInterval), 
+                TimeSpan.FromMilliseconds(AutoRefreshInterval));
+        }
+    }
+
+    public async Task RefreshLeaderboard()
+    {
+        if (_disposed || IsLoading) return;
+
+        try
+        {
+            IsLoading = true;
+            HasError = false;
+            await InvokeAsync(StateHasChanged);
+
+            var response = await Http.GetAsync("/api/scores/top10");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var apiResponse = await response.Content.ReadFromJsonAsync<LeaderboardApiResponse>();
+                
+                if (apiResponse?.Success == true && apiResponse.Leaderboard != null)
+                {
+                    Entries = apiResponse.Leaderboard;
+                    
+                    // Mark current player if specified
+                    if (!string.IsNullOrEmpty(CurrentPlayerName))
+                    {
+                        foreach (var entry in Entries)
+                        {
+                            entry.IsCurrentPlayer = string.Equals(entry.PlayerName, CurrentPlayerName, 
+                                StringComparison.OrdinalIgnoreCase);
+                        }
+                    }
+                    
+                    LastUpdated = DateTime.Now;
+                    await OnLeaderboardLoaded.InvokeAsync(Entries);
+                }
+                else
+                {
+                    HasError = true;
+                    ErrorMessage = "Failed to load leaderboard data";
+                }
+            }
+            else
+            {
+                HasError = true;
+                ErrorMessage = $"Server error: {response.StatusCode}";
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            HasError = true;
+            ErrorMessage = "Network error. Please check your connection.";
+            Console.WriteLine($"Network error loading leaderboard: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            HasError = true;
+            ErrorMessage = "An unexpected error occurred.";
+            Console.WriteLine($"Error loading leaderboard: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async Task HighlightPlayer(string playerName)
+    {
+        if (Entries != null)
+        {
+            foreach (var entry in Entries)
+            {
+                entry.IsCurrentPlayer = string.Equals(entry.PlayerName, playerName, StringComparison.OrdinalIgnoreCase);
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task OnEntryClick(LeaderboardEntry entry)
+    {
+        await OnEntryClicked.InvokeAsync(entry);
+    }
+
+    private string GetMedalIcon(int rank) => rank switch
+    {
+        1 => "🥇",
+        2 => "🥈", 
+        3 => "🥉",
+        _ => ""
+    };
+
+    private string GetRankCssClass(int rank) => rank switch
+    {
+        1 => "first-place",
+        2 => "second-place",
+        3 => "third-place",
+        _ => ""
+    };
+
+    private string FormatDuration(TimeSpan duration) => duration.TotalMinutes >= 1 
+        ? $"{(int)duration.TotalMinutes}:{duration.Seconds:D2}"
+        : $"{duration.Seconds}s";
+
+    private string FormatDate(DateTime date) => date.Date == DateTime.Today 
+        ? date.ToString("HH:mm")
+        : date.ToString("MM/dd");
+
+    private string FormatLastUpdated(DateTime lastUpdated)
+    {
+        var elapsed = DateTime.Now - lastUpdated;
+        
+        if (elapsed.TotalMinutes < 1)
+            return "Just now";
+        if (elapsed.TotalMinutes < 60)
+            return $"{(int)elapsed.TotalMinutes}m ago";
+        if (elapsed.TotalHours < 24)
+            return $"{(int)elapsed.TotalHours}h ago";
+        
+        return lastUpdated.ToString("MM/dd HH:mm");
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _autoRefreshTimer?.Dispose();
+    }
+}
+
+<style>
+    .leaderboard-container {
+        background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        min-width: 300px;
+        max-width: 500px;
+    }
+
+    .leaderboard-container.compact {
+        padding: 1rem;
+        min-width: 250px;
+    }
+
+    .leaderboard-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .leaderboard-title {
+        margin: 0;
+        color: #fff;
+        font-size: 1.3rem;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .trophy-icon {
+        font-size: 1.5rem;
+        filter: drop-shadow(0 2px 4px rgba(255, 215, 0, 0.3));
+    }
+
+    .refresh-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        border-radius: 50%;
+        width: 35px;
+        height: 35px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        color: #ccc;
+    }
+
+    .refresh-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.2);
+        transform: scale(1.05);
+    }
+
+    .refresh-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .refresh-icon.spinning {
+        animation: spin 1s linear infinite;
+    }
+
+    .leaderboard-content {
+        min-height: 200px;
+    }
+
+    .loading-state, .error-state, .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        text-align: center;
+        color: #ccc;
+    }
+
+    .loading-spinner {
+        width: 30px;
+        height: 30px;
+        border: 3px solid rgba(255, 255, 255, 0.1);
+        border-top: 3px solid #4CAF50;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 1rem;
+    }
+
+    .error-icon, .empty-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .retry-btn {
+        background: #4CAF50;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        cursor: pointer;
+        margin-top: 0.5rem;
+        transition: background 0.3s ease;
+    }
+
+    .retry-btn:hover {
+        background: #45a049;
+    }
+
+    .leaderboard-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .leaderboard-entry {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        border: 1px solid transparent;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .leaderboard-entry:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+        transform: translateX(2px);
+    }
+
+    .leaderboard-entry.current-player {
+        border-color: #4CAF50;
+        background: rgba(76, 175, 80, 0.1);
+        box-shadow: 0 0 10px rgba(76, 175, 80, 0.2);
+    }
+
+    .leaderboard-entry.first-place {
+        border-color: #FFD700;
+        background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 215, 0, 0.05));
+    }
+
+    .leaderboard-entry.second-place {
+        border-color: #C0C0C0;
+        background: linear-gradient(135deg, rgba(192, 192, 192, 0.1), rgba(192, 192, 192, 0.05));
+    }
+
+    .leaderboard-entry.third-place {
+        border-color: #CD7F32;
+        background: linear-gradient(135deg, rgba(205, 127, 50, 0.1), rgba(205, 127, 50, 0.05));
+    }
+
+    .rank {
+        width: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+    }
+
+    .medal {
+        font-size: 1.5rem;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    }
+
+    .rank-number {
+        color: #ccc;
+        font-size: 1.1rem;
+    }
+
+    .player-info {
+        flex: 1;
+        padding: 0 0.75rem;
+    }
+
+    .player-name {
+        font-weight: bold;
+        color: #fff;
+        margin-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .current-indicator {
+        color: #4CAF50;
+        font-size: 0.85rem;
+        font-weight: normal;
+    }
+
+    .game-details {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.8rem;
+        color: #999;
+    }
+
+    .score {
+        text-align: right;
+        min-width: 80px;
+    }
+
+    .score-value {
+        font-weight: bold;
+        color: #4CAF50;
+        font-size: 1.1rem;
+        display: block;
+    }
+
+    .score-label {
+        font-size: 0.75rem;
+        color: #888;
+    }
+
+    .player-rank-indicator {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+    }
+
+    .separator {
+        color: #666;
+        font-size: 1.2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .current-player-rank {
+        color: #4CAF50;
+        font-weight: bold;
+    }
+
+    .last-updated {
+        margin-top: 1rem;
+        text-align: center;
+        font-size: 0.75rem;
+        color: #666;
+        padding-top: 0.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .compact .leaderboard-entry {
+        padding: 0.5rem;
+    }
+
+    .compact .player-name {
+        font-size: 0.9rem;
+        margin-bottom: 0;
+    }
+
+    .compact .score-value {
+        font-size: 1rem;
+    }
+
+    .compact .rank {
+        width: 40px;
+    }
+
+    .compact .medal {
+        font-size: 1.2rem;
+    }
+
+    
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Responsive design */
+    
+        
+        .leaderboard-entry {
+            padding: 0.5rem;
+        }
+    }
+</style>
+

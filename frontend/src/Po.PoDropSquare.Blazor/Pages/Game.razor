@@ -1,0 +1,789 @@
+@page "/game"
+@using Po.PoDropSquare.Blazor.Models
+@using Po.PoDropSquare.Blazor.Components
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>PoDropSquare - Game</PageTitle>
+
+<div class="game-page">
+    <div class="game-header">
+        <div class="game-info">
+            <h1 class="game-title">
+                <span class="game-icon">🎮</span>
+                PoDropSquare
+            </h1>
+            <div class="game-status">
+                @GetGameStatusText()
+            </div>
+        </div>
+        
+        <div class="game-controls-header">
+            @if (_gameState == GameState.Playing)
+            {
+                <button class="control-btn pause" @onclick="PauseGame">
+                    <span>⏸️ Pause</span>
+                </button>
+            }
+            else if (_gameState == GameState.Paused)
+            {
+                <button class="control-btn resume" @onclick="ResumeGame">
+                    <span>▶️ Resume</span>
+                </button>
+            }
+            else if (_gameState == GameState.Ready)
+            {
+                <button class="control-btn start" @onclick="StartGame">
+                    <span>🚀 Start Game</span>
+                </button>
+            }
+            
+            @if (_gameState == GameState.Playing || _gameState == GameState.Paused)
+            {
+                <button class="control-btn stop" @onclick="StopGame">
+                    <span>🛑 Stop</span>
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="game-layout">
+        <div class="game-sidebar left">
+            <div class="sidebar-section">
+                <TimerDisplay 
+                    Config="_timerConfig"
+                    GameTime="_currentGameTime"
+                    IsActive="_gameState == GameState.Playing"
+                    ShowGameTime="true"
+                    OnTimeUp="OnTimeUp"
+                    OnTimeChanged="OnTimeChanged"
+                    OnWarningReached="OnTimerWarning"
+                    OnCriticalReached="OnTimerCritical"
+                    @ref="_timerRef" />
+            </div>
+            
+            <div class="sidebar-section">
+                <div class="score-display">
+                    <h3 class="section-title">Score</h3>
+                    <div class="current-score">
+                        <span class="score-value">@_currentScore.ToString("N0")</span>
+                    </div>
+                    
+                    @if (_personalBest > 0)
+                    {
+                        <div class="personal-best">
+                            <span class="pb-label">Personal Best:</span>
+                            <span class="pb-value">@_personalBest.ToString("N0")</span>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (ShowDebugInfo)
+            {
+                <div class="sidebar-section debug-info">
+                    <h4>Debug Info</h4>
+                    <div class="debug-item">State: @_gameState</div>
+                    <div class="debug-item">Blocks: @_blocksDropped</div>
+                    <div class="debug-item">Lines: @_linesCleared</div>
+                    <div class="debug-item">Combo: @_currentCombo</div>
+                </div>
+            }
+        </div>
+
+        <div class="game-main">
+            <div class="game-canvas-wrapper">
+                <GameCanvas 
+                    CanvasId="mainGameCanvas"
+                    CanvasWidth="800"
+                    CanvasHeight="600"
+                    OnGameEvent="OnGameEvent"
+                    OnScoreChanged="OnScoreChanged"
+                    OnGameStateChanged="OnGameStateChanged"
+                    @ref="_gameCanvasRef" />
+                
+                @if (_gameState == GameState.NotStarted || _gameState == GameState.Ready)
+                {
+                    <div class="game-instructions">
+                        <div class="instructions-content">
+                            <h3>How to Play</h3>
+                            <div class="instruction-list">
+                                <div class="instruction-item">
+                                    <span class="instruction-icon">🎯</span>
+                                    <span>Drop blocks to build up and reach the goal line</span>
+                                </div>
+                                <div class="instruction-item">
+                                    <span class="instruction-icon">⏰</span>
+                                    <span>Complete within the time limit</span>
+                                </div>
+                                <div class="instruction-item">
+                                    <span class="instruction-icon">🏆</span>
+                                    <span>Score points for strategic placement</span>
+                                </div>
+                            </div>
+                            
+                            @if (_gameState == GameState.Ready)
+                            {
+                                <button class="start-game-btn" @onclick="StartGame">
+                                    <span>🚀 Start Playing</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="game-sidebar right">
+            <div class="sidebar-section">
+                <LeaderboardDisplay 
+                    Title="Top 10"
+                    MaxEntries="10"
+                    IsCompact="true"
+                    CurrentPlayerName="@_currentPlayerName"
+                    AutoRefresh="false"
+                    ShowRefreshButton="true"
+                    OnLeaderboardLoaded="OnLeaderboardLoaded"
+                    @ref="_leaderboardRef" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <GameOverScreen 
+        IsVisible="_showGameOverScreen"
+        IsVictory="_isVictory"
+        IsTimeUp="_isTimeUp"
+        FinalScore="_finalScore"
+        GameDuration="_finalGameTime"
+        Rank="_playerRank"
+        BlocksDropped="_blocksDropped"
+        LinesCleared="_linesCleared"
+        BestCombo="_bestCombo"
+        IsNewHighScore="_isNewHighScore"
+        PersonalBest="_personalBest"
+        ShowSaveScore="!_scoreAlreadySaved"
+        ScoreAlreadySaved="_scoreAlreadySaved"
+        OnPlayAgain="RestartGame"
+        OnSaveScore="ShowScoreSubmissionModal"
+        OnViewLeaderboard="ShowLeaderboard"
+        OnShareScore="ShareScore"
+        OnMainMenu="GoToMainMenu" />
+
+    <!-- Score Submission Modal -->
+    <ScoreSubmissionModal 
+        IsVisible="_showScoreSubmissionModal"
+        Score="_finalScore"
+        GameDuration="_finalGameTime"
+        IsNewHighScore="_isNewHighScore"
+        Rank="_playerRank"
+        SessionId="@_sessionId"
+        OnScoreSubmitted="OnScoreSubmitted"
+        OnModalClosed="OnScoreSubmissionClosed"
+        OnPlayAgain="RestartGame"
+        OnViewLeaderboard="ShowLeaderboard" />
+</div>
+
+@code {
+    // Component references
+    private GameCanvas? _gameCanvasRef;
+    private TimerDisplay? _timerRef;
+    private LeaderboardDisplay? _leaderboardRef;
+
+    // Game state
+    private GameState _gameState = GameState.NotStarted;
+    private int _currentScore = 0;
+    private TimeSpan _currentGameTime = TimeSpan.Zero;
+    private DateTime _gameStartTime;
+    
+    // Game statistics
+    private int _blocksDropped = 0;
+    private int _linesCleared = 0;
+    private int _currentCombo = 0;
+    private int _bestCombo = 0;
+    
+    // Player data
+    private string _currentPlayerName = string.Empty;
+    private int _personalBest = 0;
+    private string _sessionId = Guid.NewGuid().ToString();
+    
+    // End game state
+    private bool _showGameOverScreen = false;
+    private bool _showScoreSubmissionModal = false;
+    private bool _isVictory = false;
+    private bool _isTimeUp = false;
+    private int _finalScore = 0;
+    private TimeSpan? _finalGameTime;
+    private int? _playerRank;
+    private bool _isNewHighScore = false;
+    private bool _scoreAlreadySaved = false;
+    
+    // Configuration
+    private TimerConfig _timerConfig = new() { TotalSeconds = 300 }; // 5 minutes
+    private List<LeaderboardEntry>? _leaderboardData;
+    
+    // Debug
+    private bool ShowDebugInfo => false; // Set to true for debugging
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadPlayerPreferences();
+    }
+
+    private void LoadPlayerPreferences()
+    {
+        // In a real app, load from localStorage or user profile
+        // For now, just set defaults
+        _personalBest = 0; // Would load from storage
+    }
+
+    private async Task StartGame()
+    {
+        if (_gameCanvasRef != null)
+        {
+            _gameStartTime = DateTime.UtcNow;
+            _currentScore = 0;
+            _blocksDropped = 0;
+            _linesCleared = 0;
+            _currentCombo = 0;
+            _bestCombo = 0;
+            _currentGameTime = TimeSpan.Zero;
+            
+            _timerRef?.StartTimer();
+            await _gameCanvasRef.StartGame();
+        }
+    }
+
+    private async Task PauseGame()
+    {
+        if (_gameCanvasRef != null)
+        {
+            _timerRef?.PauseTimer();
+            await _gameCanvasRef.PauseGame();
+        }
+    }
+
+    private async Task ResumeGame()
+    {
+        if (_gameCanvasRef != null)
+        {
+            _timerRef?.ResumeTimer();
+            await _gameCanvasRef.ResumeGame();
+        }
+    }
+
+    private async Task StopGame()
+    {
+        if (_gameCanvasRef != null)
+        {
+            _timerRef?.StopTimer();
+            await _gameCanvasRef.StopGame();
+        }
+    }
+
+    private async Task RestartGame()
+    {
+        _showGameOverScreen = false;
+        _showScoreSubmissionModal = false;
+        _scoreAlreadySaved = false;
+        _isNewHighScore = false;
+        
+        // Reset timer
+        _timerRef?.ResetTimer();
+        
+        // Small delay for UI transition
+        await Task.Delay(500);
+        
+        await StartGame();
+    }
+
+    private void OnGameStateChanged(GameState newState)
+    {
+        _gameState = newState;
+        StateHasChanged();
+    }
+
+    private void OnScoreChanged(ScoreChangedArgs args)
+    {
+        _currentScore = args.Score;
+        _currentGameTime = args.GameTime;
+        StateHasChanged();
+    }
+
+    private async Task OnGameEvent(GameEventArgs args)
+    {
+        switch (args.EventType)
+        {
+            case GameEventType.BlockLanded:
+                _blocksDropped++;
+                break;
+                
+            case GameEventType.LineCleared:
+                _linesCleared++;
+                if (args.Data is int linesCleared)
+                {
+                    _currentCombo = linesCleared > 1 ? _currentCombo + 1 : 0;
+                    _bestCombo = Math.Max(_bestCombo, _currentCombo);
+                }
+                break;
+                
+            case GameEventType.GoalReached:
+                _isVictory = true;
+                await EndGame();
+                break;
+                
+            case GameEventType.GameOver:
+                await EndGame();
+                break;
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task OnTimeUp()
+    {
+        _isTimeUp = true;
+        await EndGame();
+    }
+
+    private void OnTimeChanged(TimeSpan remaining)
+    {
+        // Update any time-based UI elements
+    }
+
+    private async Task OnTimerWarning()
+    {
+        // Could play warning sound or show visual warning
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnTimerCritical()
+    {
+        // Could play urgent sound or flash screen
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task EndGame()
+    {
+        _finalScore = _currentScore;
+        _finalGameTime = _currentGameTime;
+        
+        // Check if it's a new high score
+        _isNewHighScore = _currentScore > _personalBest;
+        if (_isNewHighScore)
+        {
+            _personalBest = _currentScore;
+            // In a real app, save to localStorage or user profile
+        }
+        
+        // Refresh leaderboard to get current rankings
+        if (_leaderboardRef != null)
+        {
+            await _leaderboardRef.RefreshLeaderboard();
+        }
+        
+        _showGameOverScreen = true;
+        StateHasChanged();
+    }
+
+    private void ShowScoreSubmissionModal()
+    {
+        _showGameOverScreen = false;
+        _showScoreSubmissionModal = true;
+        StateHasChanged();
+    }
+
+    private async Task OnScoreSubmitted(PlayerScore playerScore)
+    {
+        _currentPlayerName = playerScore.PlayerName;
+        _scoreAlreadySaved = true;
+        
+        // Refresh leaderboard to show new score
+        if (_leaderboardRef != null)
+        {
+            await _leaderboardRef.RefreshLeaderboard();
+            await _leaderboardRef.HighlightPlayer(playerScore.PlayerName);
+        }
+        
+        // Could also update player rank here based on API response
+    }
+
+    private void OnScoreSubmissionClosed()
+    {
+        _showScoreSubmissionModal = false;
+        _showGameOverScreen = true;
+        StateHasChanged();
+    }
+
+    private async Task ShowLeaderboard()
+    {
+        if (_leaderboardRef != null)
+        {
+            await _leaderboardRef.RefreshLeaderboard();
+        }
+        // Could navigate to dedicated leaderboard page or show modal
+    }
+
+    private async Task ShareScore()
+    {
+        var shareText = $"I just scored {_finalScore:N0} points in PoDropSquare! Can you beat my score?";
+        var shareUrl = Navigation.BaseUri;
+        
+        // Try to use Web Share API if available
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.share", new
+            {
+                title = "PoDropSquare - My Score",
+                text = shareText,
+                url = shareUrl
+            });
+        }
+        catch
+        {
+            // Fallback to copying to clipboard
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", $"{shareText} Play at: {shareUrl}");
+            // Could show a toast notification here
+        }
+    }
+
+    private void GoToMainMenu()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void OnLeaderboardLoaded(List<LeaderboardEntry> entries)
+    {
+        _leaderboardData = entries;
+        
+        // Find current player's rank if they have a score
+        if (!string.IsNullOrEmpty(_currentPlayerName))
+        {
+            var playerEntry = entries.FirstOrDefault(e => e.PlayerName.Equals(_currentPlayerName, StringComparison.OrdinalIgnoreCase));
+            if (playerEntry != null)
+            {
+                _playerRank = playerEntry.Rank;
+            }
+        }
+        
+        StateHasChanged();
+    }
+
+    private string GetGameStatusText() => _gameState switch
+    {
+        GameState.NotStarted => "Ready to play",
+        GameState.Loading => "Loading...",
+        GameState.Ready => "Press Start to begin",
+        GameState.Playing => "Playing",
+        GameState.Paused => "Game paused",
+        GameState.GameOver => "Game over",
+        GameState.Error => "Error occurred",
+        _ => "Unknown state"
+    };
+
+    public void Dispose()
+    {
+        // Component disposal is handled by individual components
+    }
+}
+
+<style>
+    .game-page {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #0f0f23 0%, #1a1a3a 50%, #2a2a4a 100%);
+        color: white;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        overflow-x: hidden;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+    }
+
+    .game-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .game-title {
+        margin: 0;
+        font-size: 1.8rem;
+        font-weight: bold;
+        background: linear-gradient(45deg, #4CAF50, #8BC34A);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .game-icon {
+        font-size: 2rem;
+        filter: drop-shadow(0 2px 4px rgba(76, 175, 80, 0.3));
+    }
+
+    .game-status {
+        color: #ccc;
+        font-size: 1rem;
+        padding: 0.25rem 0.75rem;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .game-controls-header {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .control-btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .control-btn.start {
+        background: linear-gradient(135deg, #4CAF50, #45a049);
+        color: white;
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    }
+
+    .control-btn.pause {
+        background: linear-gradient(135deg, #FF9800, #F57C00);
+        color: white;
+        box-shadow: 0 4px 15px rgba(255, 152, 0, 0.3);
+    }
+
+    .control-btn.resume {
+        background: linear-gradient(135deg, #2196F3, #1976D2);
+        color: white;
+        box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+    }
+
+    .control-btn.stop {
+        background: linear-gradient(135deg, #f44336, #d32f2f);
+        color: white;
+        box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3);
+    }
+
+    .control-btn:hover {
+        transform: translateY(-2px);
+        filter: brightness(1.1);
+    }
+
+    .game-layout {
+        display: grid;
+        grid-template-columns: 250px 1fr 300px;
+        gap: 1rem;
+        padding: 1rem;
+        min-height: calc(100vh - 100px);
+    }
+
+    .game-sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .sidebar-section {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 1rem;
+        backdrop-filter: blur(5px);
+    }
+
+    .section-title {
+        margin: 0 0 1rem 0;
+        color: #4CAF50;
+        font-size: 1.1rem;
+        font-weight: 600;
+        text-align: center;
+        border-bottom: 1px solid rgba(76, 175, 80, 0.3);
+        padding-bottom: 0.5rem;
+    }
+
+    .score-display {
+        text-align: center;
+    }
+
+    .current-score {
+        margin-bottom: 1rem;
+    }
+
+    .score-value {
+        display: block;
+        font-size: 2.2rem;
+        font-weight: bold;
+        color: #4CAF50;
+        text-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
+        margin-bottom: 0.5rem;
+    }
+
+    .personal-best {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .pb-label {
+        color: #ccc;
+        font-size: 0.9rem;
+    }
+
+    .pb-value {
+        color: #FFD700;
+        font-weight: 600;
+    }
+
+    .debug-info {
+        background: rgba(255, 0, 0, 0.1);
+        border-color: rgba(255, 0, 0, 0.3);
+    }
+
+    .debug-info h4 {
+        margin: 0 0 0.5rem 0;
+        color: #ff6b6b;
+        font-size: 0.9rem;
+    }
+
+    .debug-item {
+        font-size: 0.8rem;
+        color: #ffcccb;
+        margin-bottom: 0.25rem;
+        font-family: monospace;
+    }
+
+    .game-main {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+    }
+
+    .game-canvas-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    .game-instructions {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.9);
+        border-radius: 15px;
+        padding: 2rem;
+        border: 2px solid rgba(76, 175, 80, 0.3);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        text-align: center;
+        max-width: 400px;
+        z-index: 10;
+    }
+
+    .instructions-content h3 {
+        margin: 0 0 1.5rem 0;
+        color: #4CAF50;
+        font-size: 1.5rem;
+    }
+
+    .instruction-list {
+        text-align: left;
+        margin-bottom: 2rem;
+    }
+
+    .instruction-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        color: #ccc;
+        line-height: 1.4;
+    }
+
+    .instruction-icon {
+        font-size: 1.2rem;
+        min-width: 24px;
+    }
+
+    .start-game-btn {
+        background: linear-gradient(135deg, #4CAF50, #45a049);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 25px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    }
+
+    .start-game-btn:hover {
+        background: linear-gradient(135deg, #45a049, #3d8b40);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+    }
+
+    /* Responsive design */
+    
+
+    
+        
+        .game-main {
+            order: 3;
+        }
+        
+        .game-sidebar.right {
+            order: 2;
+        }
+    }
+
+    
+        
+        .game-layout {
+            padding: 0.5rem;
+            gap: 0.5rem;
+        }
+        
+        .game-sidebar.left {
+            grid-template-columns: 1fr;
+        }
+        
+        .game-instructions {
+            padding: 1.5rem;
+            max-width: 90vw;
+        }
+    }
+
+    
+        
+        .sidebar-section {
+            padding: 0.75rem;
+        }
+        
+        .score-value {
+            font-size: 1.8rem;
+        }
+    }
+</style>

@@ -1,0 +1,416 @@
+@using Po.PoDropSquare.Blazor.Models
+@implements IDisposable
+
+<div class="timer-display @GetTimerCssClass()">
+    <div class="timer-container">
+        <div class="timer-icon">
+            @if (IsWarning)
+            {
+                <span class="warning-icon">⚠️</span>
+            }
+            else if (IsCritical)
+            {
+                <span class="critical-icon">🚨</span>
+            }
+            else
+            {
+                <span class="clock-icon">⏱️</span>
+            }
+        </div>
+        
+        <div class="timer-text">
+            <div class="time-remaining">
+                @FormatTime(RemainingTime)
+            </div>
+            
+            @if (ShowProgress)
+            {
+                <div class="timer-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: @(ProgressPercentage)%"></div>
+                    </div>
+                </div>
+            }
+            
+            @if (ShowLabel)
+            {
+                <div class="timer-label">
+                    @if (IsCritical)
+                    {
+                        <span class="pulse">TIME RUNNING OUT!</span>
+                    }
+                    else if (IsWarning)
+                    {
+                        <span>Hurry up!</span>
+                    }
+                    else
+                    {
+                        <span>Time Remaining</span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+    
+    @if (ShowGameTime && GameTime.HasValue)
+    {
+        <div class="game-time">
+            <small>Game Time: @FormatTime(GameTime.Value)</small>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public TimerConfig Config { get; set; } = new();
+    [Parameter] public TimeSpan? GameTime { get; set; }
+    [Parameter] public bool IsActive { get; set; } = false;
+    [Parameter] public bool ShowProgress { get; set; } = true;
+    [Parameter] public bool ShowLabel { get; set; } = true;
+    [Parameter] public bool ShowGameTime { get; set; } = false;
+    [Parameter] public EventCallback OnTimeUp { get; set; }
+    [Parameter] public EventCallback<TimeSpan> OnTimeChanged { get; set; }
+    [Parameter] public EventCallback OnWarningReached { get; set; }
+    [Parameter] public EventCallback OnCriticalReached { get; set; }
+
+    private Timer? _timer;
+    private DateTime _startTime;
+    private TimeSpan _elapsedTime = TimeSpan.Zero;
+    private bool _warningTriggered = false;
+    private bool _criticalTriggered = false;
+    private bool _disposed = false;
+
+    public TimeSpan RemainingTime => TimeSpan.FromSeconds(Math.Max(0, Config.TotalSeconds - _elapsedTime.TotalSeconds));
+    public TimeSpan ElapsedTime => _elapsedTime;
+    public double ProgressPercentage => Math.Max(0, Math.Min(100, (_elapsedTime.TotalSeconds / Config.TotalSeconds) * 100));
+    public bool IsWarning => RemainingTime.TotalSeconds <= Config.WarningThreshold && RemainingTime.TotalSeconds > Config.CriticalThreshold;
+    public bool IsCritical => RemainingTime.TotalSeconds <= Config.CriticalThreshold && RemainingTime.TotalSeconds > 0;
+    public bool IsTimeUp => RemainingTime.TotalSeconds <= 0;
+
+    public void StartTimer()
+    {
+        if (_disposed) return;
+        
+        StopTimer();
+        _startTime = DateTime.UtcNow;
+        _elapsedTime = TimeSpan.Zero;
+        _warningTriggered = false;
+        _criticalTriggered = false;
+        
+        // Update every 100ms for smooth progress bar animation
+        _timer = new Timer(TimerTick, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+        IsActive = true;
+        
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void StopTimer()
+    {
+        _timer?.Dispose();
+        _timer = null;
+        IsActive = false;
+        
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void PauseTimer()
+    {
+        if (_timer != null)
+        {
+            _timer.Dispose();
+            _timer = null;
+            IsActive = false;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void ResumeTimer()
+    {
+        if (_disposed || _timer != null) return;
+        
+        // Adjust start time to account for paused duration
+        _startTime = DateTime.UtcNow - _elapsedTime;
+        _timer = new Timer(TimerTick, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+        IsActive = true;
+        
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void ResetTimer()
+    {
+        StopTimer();
+        _elapsedTime = TimeSpan.Zero;
+        _warningTriggered = false;
+        _criticalTriggered = false;
+        
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void AddTime(TimeSpan additionalTime)
+    {
+        if (additionalTime.TotalSeconds > 0)
+        {
+            Config.TotalSeconds += (int)additionalTime.TotalSeconds;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async void TimerTick(object? state)
+    {
+        if (_disposed || !IsActive) return;
+
+        _elapsedTime = DateTime.UtcNow - _startTime;
+        
+        // Check for time up
+        if (IsTimeUp)
+        {
+            StopTimer();
+            await InvokeAsync(async () =>
+            {
+                await OnTimeUp.InvokeAsync();
+                StateHasChanged();
+            });
+            return;
+        }
+
+        // Check for warning threshold
+        if (!_warningTriggered && IsWarning)
+        {
+            _warningTriggered = true;
+            await InvokeAsync(async () =>
+            {
+                await OnWarningReached.InvokeAsync();
+            });
+        }
+
+        // Check for critical threshold
+        if (!_criticalTriggered && IsCritical)
+        {
+            _criticalTriggered = true;
+            await InvokeAsync(async () =>
+            {
+                await OnCriticalReached.InvokeAsync();
+            });
+        }
+
+        // Notify time change
+        await InvokeAsync(async () =>
+        {
+            await OnTimeChanged.InvokeAsync(RemainingTime);
+            StateHasChanged();
+        });
+    }
+
+    private string FormatTime(TimeSpan time)
+    {
+        if (Config.ShowMilliseconds && time.TotalMinutes < 1)
+        {
+            return $"{time.Seconds:D2}.{time.Milliseconds / 100:D1}";
+        }
+        else if (time.TotalHours >= 1)
+        {
+            return $"{(int)time.TotalHours}:{time.Minutes:D2}:{time.Seconds:D2}";
+        }
+        else
+        {
+            return $"{time.Minutes:D2}:{time.Seconds:D2}";
+        }
+    }
+
+    private string GetTimerCssClass()
+    {
+        var classes = new List<string> { "timer" };
+        
+        if (IsCritical)
+            classes.Add("critical");
+        else if (IsWarning)
+            classes.Add("warning");
+        else
+            classes.Add("normal");
+            
+        if (!IsActive)
+            classes.Add("paused");
+            
+        return string.Join(" ", classes);
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _timer?.Dispose();
+    }
+}
+
+<style>
+    .timer-display {
+        background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+        min-width: 200px;
+    }
+
+    .timer-display.normal {
+        border-color: #4CAF50;
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.2);
+    }
+
+    .timer-display.warning {
+        border-color: #FF9800;
+        box-shadow: 0 4px 15px rgba(255, 152, 0, 0.3);
+        animation: pulse-warning 2s ease-in-out infinite;
+    }
+
+    .timer-display.critical {
+        border-color: #f44336;
+        box-shadow: 0 4px 15px rgba(244, 67, 54, 0.4);
+        animation: pulse-critical 1s ease-in-out infinite;
+    }
+
+    .timer-display.paused {
+        opacity: 0.7;
+        border-style: dashed;
+    }
+
+    .timer-container {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .timer-icon {
+        font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .warning-icon {
+        animation: bounce 1s ease-in-out infinite;
+    }
+
+    .critical-icon {
+        animation: shake 0.5s ease-in-out infinite;
+    }
+
+    .timer-text {
+        flex: 1;
+        text-align: center;
+    }
+
+    .time-remaining {
+        font-size: 1.8rem;
+        font-weight: bold;
+        font-family: 'Courier New', monospace;
+        color: white;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        margin-bottom: 0.25rem;
+    }
+
+    .critical .time-remaining {
+        color: #ff4444;
+        animation: pulse-text 0.5s ease-in-out infinite;
+    }
+
+    .warning .time-remaining {
+        color: #ffaa00;
+    }
+
+    .timer-progress {
+        margin: 0.5rem 0;
+    }
+
+    .progress-bar {
+        width: 100%;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #4CAF50, #8BC34A);
+        border-radius: 3px;
+        transition: width 0.1s ease-out;
+    }
+
+    .warning .progress-fill {
+        background: linear-gradient(90deg, #FF9800, #FFC107);
+    }
+
+    .critical .progress-fill {
+        background: linear-gradient(90deg, #f44336, #FF5722);
+        animation: progress-pulse 0.5s ease-in-out infinite;
+    }
+
+    .timer-label {
+        font-size: 0.8rem;
+        color: #ccc;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 0.25rem;
+    }
+
+    .timer-label .pulse {
+        animation: pulse-text 1s ease-in-out infinite;
+        color: #ff4444;
+        font-weight: bold;
+    }
+
+    .game-time {
+        margin-top: 0.5rem;
+        text-align: center;
+        color: #888;
+        font-size: 0.75rem;
+    }
+
+    /* Animations */
+    
+        50% { 
+            box-shadow: 0 4px 25px rgba(255, 152, 0, 0.6);
+            border-color: #FFC107;
+        }
+    }
+
+    
+        50% { 
+            box-shadow: 0 4px 30px rgba(244, 67, 54, 0.8);
+            border-color: #FF5722;
+        }
+    }
+
+    
+        50% { opacity: 0.6; }
+    }
+
+    
+        40% { transform: translateY(-5px); }
+        60% { transform: translateY(-3px); }
+    }
+
+    
+        25% { transform: translateX(-2px); }
+        75% { transform: translateX(2px); }
+    }
+
+    
+        50% { opacity: 0.7; }
+    }
+
+    /* Responsive design */
+    
+        
+        .timer-icon {
+            width: 30px;
+            height: 30px;
+            font-size: 1.2rem;
+        }
+    }
+</style>
+

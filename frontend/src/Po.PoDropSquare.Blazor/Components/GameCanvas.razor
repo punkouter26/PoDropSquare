@@ -1,0 +1,383 @@
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JSRuntime
+
+<div class="game-canvas-container">
+    <canvas id="@CanvasId" 
+            class="game-canvas"
+            width="@CanvasWidth" 
+            height="@CanvasHeight"
+            @onkeydown="HandleKeyDown"
+            @onkeyup="HandleKeyUp"
+            @onmousedown="HandleMouseDown"
+            @onmouseup="HandleMouseUp"
+            @onmousemove="HandleMouseMove"
+            @onclick="HandleClick"
+            tabindex="0">
+        Your browser does not support HTML5 Canvas.
+    </canvas>
+    
+    @if (ShowGameOverlay)
+    {
+        <div class="game-overlay">
+            <div class="game-status">
+                @if (GameState == GameState.Loading)
+                {
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                        <p>Initializing Physics Engine...</p>
+                    </div>
+                }
+                else if (GameState == GameState.Paused)
+                {
+                    <div class="pause-screen">
+                        <h2>Game Paused</h2>
+                        <button class="btn btn-primary" @onclick="ResumeGame">Resume</button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    
+    <div class="game-controls">
+        <div class="control-instructions">
+            <p><strong>Controls:</strong></p>
+            <p>← → Arrow Keys: Move block horizontally</p>
+            <p>↓ Down Arrow: Drop block faster</p>
+            <p>Space: Pause/Resume</p>
+            <p>Click: Drop block at mouse position</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string CanvasId { get; set; } = "gameCanvas";
+    [Parameter] public int CanvasWidth { get; set; } = 800;
+    [Parameter] public int CanvasHeight { get; set; } = 600;
+    [Parameter] public EventCallback<GameEventArgs> OnGameEvent { get; set; }
+    [Parameter] public EventCallback<ScoreChangedArgs> OnScoreChanged { get; set; }
+    [Parameter] public EventCallback<GameState> OnGameStateChanged { get; set; }
+
+    private GameState _gameState = GameState.NotStarted;
+    private bool _physicsInitialized = false;
+    private DotNetObjectReference<GameCanvas>? _dotNetRef;
+    private Timer? _gameTimer;
+    private int _currentScore = 0;
+    private DateTime _gameStartTime;
+    private bool _isDisposed = false;
+
+    // Input state tracking
+    private bool _leftPressed = false;
+    private bool _rightPressed = false;
+    private bool _downPressed = false;
+    private double _lastMouseX = 0;
+    private double _lastMouseY = 0;
+
+    public GameState GameState 
+    { 
+        get => _gameState;
+        private set 
+        {
+            if (_gameState != value)
+            {
+                _gameState = value;
+                InvokeAsync(() => OnGameStateChanged.InvokeAsync(value));
+                StateHasChanged();
+            }
+        }
+    }
+
+    public bool ShowGameOverlay => GameState == GameState.Loading || GameState == GameState.Paused;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await InitializeGame();
+        }
+    }
+
+    private async Task InitializeGame()
+    {
+        try
+        {
+            GameState = GameState.Loading;
+            
+            // Create DotNet reference for JS interop callbacks
+            _dotNetRef = DotNetObjectReference.Create(this);
+            
+            // Initialize physics engine (using global functions)
+            var success = await JSRuntime.InvokeAsync<bool>("initializePhysics", CanvasId);
+            
+            if (!success)
+            {
+                throw new InvalidOperationException("Failed to initialize physics engine");
+            }
+
+            _physicsInitialized = true;
+
+            // Set up game event callbacks
+            await JSRuntime.InvokeVoidAsync("setGameCallbacks", _dotNetRef);
+            
+            // Start game timer for regular updates
+            _gameTimer = new Timer(GameTick, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(16)); // ~60 FPS
+            
+            GameState = GameState.Ready;
+            
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to initialize game: {ex.Message}");
+            GameState = GameState.Error;
+        }
+    }
+
+    public async Task StartGame()
+    {
+        if (GameState != GameState.Ready && GameState != GameState.GameOver)
+            return;
+
+        try
+        {
+            _gameStartTime = DateTime.UtcNow;
+            _currentScore = 0;
+            
+            // Reset physics world
+            if (_physicsInitialized)
+            {
+                await JSRuntime.InvokeVoidAsync("resetGame");
+                await JSRuntime.InvokeVoidAsync("startGame");
+            }
+            
+            GameState = GameState.Playing;
+            
+            // Notify score change
+            await OnScoreChanged.InvokeAsync(new ScoreChangedArgs { Score = _currentScore, GameTime = TimeSpan.Zero });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to start game: {ex.Message}");
+        }
+    }
+
+    public async Task PauseGame()
+    {
+        if (GameState == GameState.Playing)
+        {
+            GameState = GameState.Paused;
+            if (_physicsInitialized)
+            {
+                await JSRuntime.InvokeVoidAsync("pauseGame");
+            }
+        }
+    }
+
+    public async Task ResumeGame()
+    {
+        if (GameState == GameState.Paused)
+        {
+            GameState = GameState.Playing;
+            if (_physicsInitialized)
+            {
+                await JSRuntime.InvokeVoidAsync("resumeGame");
+            }
+        }
+    }
+
+    public async Task StopGame()
+    {
+        if (GameState == GameState.Playing || GameState == GameState.Paused)
+        {
+            GameState = GameState.GameOver;
+            if (_physicsInitialized)
+            {
+                await JSRuntime.InvokeVoidAsync("stopGame");
+            }
+            
+            // Notify final score
+            var gameTime = DateTime.UtcNow - _gameStartTime;
+            await OnScoreChanged.InvokeAsync(new ScoreChangedArgs { Score = _currentScore, GameTime = gameTime });
+            await OnGameEvent.InvokeAsync(new GameEventArgs { EventType = GameEventType.GameOver, Score = _currentScore });
+        }
+    }
+
+    private async void GameTick(object? state)
+    {
+        if (_isDisposed || GameState != GameState.Playing || !_physicsInitialized)
+            return;
+
+        try
+        {
+            // Process continuous input
+            await ProcessContinuousInput();
+            
+            // Update physics
+            await JSRuntime.InvokeVoidAsync("updatePhysics");
+            
+            // Update game time
+            var gameTime = DateTime.UtcNow - _gameStartTime;
+            await InvokeAsync(() => OnScoreChanged.InvokeAsync(new ScoreChangedArgs { Score = _currentScore, GameTime = gameTime }));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Game tick error: {ex.Message}");
+        }
+    }
+
+    private async Task ProcessContinuousInput()
+    {
+        if (!_physicsInitialized) return;
+
+        // Handle continuous key presses
+        if (_leftPressed)
+        {
+            await JSRuntime.InvokeVoidAsync("moveBlockLeft");
+        }
+        if (_rightPressed)
+        {
+            await JSRuntime.InvokeVoidAsync("moveBlockRight");
+        }
+        if (_downPressed)
+        {
+            await JSRuntime.InvokeVoidAsync("dropBlockFast");
+        }
+    }
+
+    // Input event handlers
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (GameState != GameState.Playing) 
+        {
+            if (e.Key == " " && GameState == GameState.Ready)
+            {
+                await StartGame();
+            }
+            else if (e.Key == " " && GameState == GameState.Paused)
+            {
+                await ResumeGame();
+            }
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case "ArrowLeft":
+                _leftPressed = true;
+                break;
+            case "ArrowRight":
+                _rightPressed = true;
+                break;
+            case "ArrowDown":
+                _downPressed = true;
+                break;
+            case " ": // Space
+                await PauseGame();
+                break;
+            case "Escape":
+                await StopGame();
+                break;
+        }
+    }
+
+    private void HandleKeyUp(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowLeft":
+                _leftPressed = false;
+                break;
+            case "ArrowRight":
+                _rightPressed = false;
+                break;
+            case "ArrowDown":
+                _downPressed = false;
+                break;
+        }
+    }
+
+    private async Task HandleMouseDown(MouseEventArgs e)
+    {
+        if (GameState == GameState.Playing && _physicsInitialized)
+        {
+            _lastMouseX = e.OffsetX;
+            _lastMouseY = e.OffsetY;
+        }
+    }
+
+    private async Task HandleMouseUp(MouseEventArgs e)
+    {
+        // Future: Could implement drag and drop functionality
+    }
+
+    private async Task HandleMouseMove(MouseEventArgs e)
+    {
+        if (GameState == GameState.Playing)
+        {
+            _lastMouseX = e.OffsetX;
+            _lastMouseY = e.OffsetY;
+        }
+    }
+
+    private async Task HandleClick(MouseEventArgs e)
+    {
+        if (GameState == GameState.Playing && _physicsInitialized)
+        {
+            // Drop block at mouse position
+            await JSRuntime.InvokeVoidAsync("dropBlockAtPosition", e.OffsetX, e.OffsetY);
+        }
+        else if (GameState == GameState.Ready)
+        {
+            await StartGame();
+        }
+    }
+
+    // JavaScript callbacks
+    [JSInvokable]
+    public async Task OnBlockLanded(int points, int totalScore)
+    {
+        _currentScore = totalScore;
+        var gameTime = DateTime.UtcNow - _gameStartTime;
+        await OnScoreChanged.InvokeAsync(new ScoreChangedArgs { Score = _currentScore, GameTime = gameTime });
+        await OnGameEvent.InvokeAsync(new GameEventArgs { EventType = GameEventType.BlockLanded, Score = points });
+    }
+
+    [JSInvokable]
+    public async Task OnLineCleared(int linesCleared, int points)
+    {
+        await OnGameEvent.InvokeAsync(new GameEventArgs { EventType = GameEventType.LineCleared, Score = points, Data = linesCleared });
+    }
+
+    [JSInvokable]
+    public async Task OnGoalReached()
+    {
+        await StopGame();
+        await OnGameEvent.InvokeAsync(new GameEventArgs { EventType = GameEventType.GoalReached, Score = _currentScore });
+    }
+
+    [JSInvokable]
+    public async Task OnGameOverTriggered()
+    {
+        await StopGame();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _isDisposed = true;
+        
+        _gameTimer?.Dispose();
+        
+        if (_physicsInitialized)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("cleanup");
+            }
+            catch { /* Ignore disposal errors */ }
+        }
+        
+        _dotNetRef?.Dispose();
+    }
+}
+

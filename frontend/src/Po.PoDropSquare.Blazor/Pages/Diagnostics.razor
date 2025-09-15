@@ -1,0 +1,293 @@
+@page "/diag"
+@using System.Text.Json
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+
+<div class="container-fluid">
+    <h1 class="display-4">System Diagnostics</h1>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Backend Health Status</h5>
+                    <span class="badge @GetStatusBadgeClass()">@GetStatusText()</span>
+                </div>
+                <div class="card-body">
+                    @if (isLoading)
+                    {
+                        <div class="d-flex justify-content-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    }
+                    else if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            <strong>Error:</strong> @errorMessage
+                        </div>
+                        <button class="btn btn-outline-primary" @onclick="RefreshHealthStatus">
+                            <i class="bi bi-arrow-clockwise"></i> Retry
+                        </button>
+                    }
+                    else if (healthStatus != null)
+                    {
+                        <div class="row mb-3">
+                            <div class="col-sm-3"><strong>Status:</strong></div>
+                            <div class="col-sm-9">
+                                <span class="badge @GetStatusBadgeClass()">@healthStatus.Status</span>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-sm-3"><strong>Version:</strong></div>
+                            <div class="col-sm-9">@healthStatus.Version</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-sm-3"><strong>Environment:</strong></div>
+                            <div class="col-sm-9">@healthStatus.Environment</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-sm-3"><strong>Uptime:</strong></div>
+                            <div class="col-sm-9">@FormatUptime(healthStatus.Uptime)</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-sm-3"><strong>Last Check:</strong></div>
+                            <div class="col-sm-9">@healthStatus.Timestamp.ToString("yyyy-MM-dd HH:mm:ss UTC")</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Frontend Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>Application:</strong></div>
+                        <div class="col-sm-8">PoDropSquare</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>Framework:</strong></div>
+                        <div class="col-sm-8">Blazor WebAssembly</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>User Agent:</strong></div>
+                        <div class="col-sm-8"><small>@userAgent</small></div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>API Base URL:</strong></div>
+                        <div class="col-sm-8">@Http.BaseAddress</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (healthStatus?.Dependencies != null && healthStatus.Dependencies.Any())
+    {
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Dependency Health Checks</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Service</th>
+                                <th>Status</th>
+                                <th>Response Time</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var dependency in healthStatus.Dependencies)
+                            {
+                                <tr>
+                                    <td>@FormatServiceName(dependency.Key)</td>
+                                    <td>
+                                        <span class="badge @GetDependencyStatusBadgeClass(dependency.Value.Status)">
+                                            @dependency.Value.Status
+                                        </span>
+                                    </td>
+                                    <td>@dependency.Value.ResponseTime ms</td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(dependency.Value.Details))
+                                        {
+                                            <small class="text-muted">@dependency.Value.Details</small>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="mt-4 d-flex justify-content-between">
+        <button class="btn btn-primary" @onclick="RefreshHealthStatus">
+            <i class="bi bi-arrow-clockwise"></i> Refresh Status
+        </button>
+        <small class="text-muted align-self-center">
+            Auto-refresh every 30 seconds
+        </small>
+    </div>
+</div>
+
+@code {
+    private HealthCheckResponse? healthStatus;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string userAgent = "";
+    private Timer? refreshTimer;
+
+    public class HealthCheckResponse
+    {
+        public string Status { get; set; } = "";
+        public string Version { get; set; } = "";
+        public DateTime Timestamp { get; set; }
+        public Dictionary<string, DependencyHealth> Dependencies { get; set; } = new();
+        public long Uptime { get; set; }
+        public string Environment { get; set; } = "";
+    }
+
+    public class DependencyHealth
+    {
+        public string Status { get; set; } = "";
+        public int ResponseTime { get; set; }
+        public string? Details { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Get user agent
+        try
+        {
+            userAgent = await JSRuntime.InvokeAsync<string>("navigator.userAgent") ?? "Unknown";
+        }
+        catch
+        {
+            userAgent = "Unknown";
+        }
+
+        // Initial health check
+        await RefreshHealthStatus();
+
+        // Set up auto-refresh every 30 seconds
+        refreshTimer = new Timer(async _ => await InvokeAsync(RefreshHealthStatus), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private async Task RefreshHealthStatus()
+    {
+        isLoading = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.GetAsync("/api/health");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var jsonContent = await response.Content.ReadAsStringAsync();
+                healthStatus = JsonSerializer.Deserialize<HealthCheckResponse>(jsonContent, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                errorMessage = null;
+            }
+            else
+            {
+                errorMessage = $"API returned {(int)response.StatusCode} {response.StatusCode}";
+                healthStatus = null;
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = $"Connection failed: {ex.Message}";
+            healthStatus = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unexpected error: {ex.Message}";
+            healthStatus = null;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetStatusText()
+    {
+        if (healthStatus != null)
+            return healthStatus.Status;
+        
+        return !string.IsNullOrEmpty(errorMessage) ? "Error" : "Loading...";
+    }
+
+    private string GetStatusBadgeClass()
+    {
+        if (healthStatus?.Status == "Healthy")
+            return "bg-success";
+        else if (healthStatus?.Status == "Degraded")
+            return "bg-warning";
+        else if (!string.IsNullOrEmpty(errorMessage))
+            return "bg-danger";
+        else
+            return "bg-secondary";
+    }
+
+    private string GetDependencyStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Healthy" => "bg-success",
+            "Degraded" => "bg-warning",
+            "Unhealthy" => "bg-danger",
+            "Critical" => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
+    private string FormatServiceName(string serviceName)
+    {
+        return serviceName switch
+        {
+            "azure-table-storage" => "Azure Table Storage",
+            "self" => "API Self-Check",
+            "memory" => "Memory Usage",
+            _ => serviceName.Replace("-", " ").Replace("_", " ")
+        };
+    }
+
+    private string FormatUptime(long uptimeMs)
+    {
+        var uptime = TimeSpan.FromMilliseconds(uptimeMs);
+        
+        if (uptime.TotalDays >= 1)
+            return $"{uptime.Days}d {uptime.Hours}h {uptime.Minutes}m";
+        else if (uptime.TotalHours >= 1)
+            return $"{uptime.Hours}h {uptime.Minutes}m {uptime.Seconds}s";
+        else if (uptime.TotalMinutes >= 1)
+            return $"{uptime.Minutes}m {uptime.Seconds}s";
+        else
+            return $"{uptime.Seconds}s";
+    }
+
+    public void Dispose()
+    {
+        refreshTimer?.Dispose();
+    }
+}

@@ -1,0 +1,439 @@
+openapi: 3.0.3
+info:
+  title: PoDropSquare API
+  description: REST API for PoDropSquare physics-based tower building game
+  version: 1.0.0
+  contact:
+    name: PoDropSquare API Support
+    email: support@podropsquare.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.podropsquare.com/api/v1
+    description: Production server
+  - url: https://staging-api.podropsquare.com/api/v1
+    description: Staging server
+  - url: http://localhost:5000/api/v1
+    description: Local development server
+
+paths:
+  /scores:
+    post:
+      summary: Submit a new player score
+      description: Submit a completed game score to the leaderboard system with validation
+      operationId: submitScore
+      tags:
+        - Scores
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoreSubmissionRequest'
+            examples:
+              validScore:
+                summary: Valid score submission
+                value:
+                  playerInitials: "ABC"
+                  survivalTime: 18.75
+                  sessionSignature: "a1b2c3d4e5f6789012345678901234567890abcdef"
+                  clientTimestamp: "2025-09-13T15:30:45.123Z"
+      responses:
+        '200':
+          description: Score submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreSubmissionResponse'
+              examples:
+                scoreAccepted:
+                  summary: Score accepted for leaderboard
+                  value:
+                    success: true
+                    scoreId: "123e4567-e89b-12d3-a456-426614174000"
+                    leaderboardPosition: 3
+                    qualifiedForLeaderboard: true
+                    message: "Score submitted successfully"
+        '201':
+          description: New high score achieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreSubmissionResponse'
+              examples:
+                newHighScore:
+                  summary: New high score
+                  value:
+                    success: true
+                    scoreId: "123e4567-e89b-12d3-a456-426614174000"
+                    leaderboardPosition: 1
+                    qualifiedForLeaderboard: true
+                    message: "New high score achieved!"
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                validationError:
+                  summary: Invalid player initials
+                  value:
+                    success: false
+                    error: "VALIDATION_FAILED"
+                    message: "Player initials must be 1-3 alphanumeric characters"
+                    details:
+                      field: "playerInitials"
+                      value: "TOOLONG"
+                      constraint: "length_1_to_3_alphanumeric"
+                    timestamp: "2025-09-13T15:30:45.123Z"
+                    requestId: "req_123456789"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rateLimited:
+                  summary: Too many requests
+                  value:
+                    success: false
+                    error: "RATE_LIMITED"
+                    message: "Too many score submissions. Please wait before submitting again."
+                    retryAfter: 60
+                    timestamp: "2025-09-13T15:30:45.123Z"
+                    requestId: "req_123456789"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /scores/top10:
+    get:
+      summary: Get top 10 leaderboard
+      description: Retrieve the current top 10 player scores from the leaderboard
+      operationId: getLeaderboard
+      tags:
+        - Scores
+      responses:
+        '200':
+          description: Leaderboard retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderboardResponse'
+              examples:
+                leaderboard:
+                  summary: Current top 10 leaderboard
+                  value:
+                    success: true
+                    leaderboard:
+                      - position: 1
+                        playerInitials: "PRO"
+                        survivalTime: 20.00
+                        achievedAt: "2025-09-13T14:15:30.000Z"
+                      - position: 2
+                        playerInitials: "ACE"
+                        survivalTime: 19.87
+                        achievedAt: "2025-09-13T13:45:22.000Z"
+                      - position: 3
+                        playerInitials: "TOP"
+                        survivalTime: 19.42
+                        achievedAt: "2025-09-13T12:30:15.000Z"
+                    lastUpdated: "2025-09-13T15:30:45.123Z"
+                    totalEntries: 3
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      summary: Health check
+      description: Check API availability and service status
+      operationId: healthCheck
+      tags:
+        - System
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  summary: All systems operational
+                  value:
+                    status: "healthy"
+                    timestamp: "2025-09-13T15:30:45.123Z"
+                    version: "1.0.0"
+                    checks:
+                      database: "healthy"
+                      cache: "healthy"
+                      storage: "healthy"
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                unhealthy:
+                  summary: Database connection issues
+                  value:
+                    status: "unhealthy"
+                    timestamp: "2025-09-13T15:30:45.123Z"
+                    version: "1.0.0"
+                    checks:
+                      database: "unhealthy"
+                      cache: "healthy"
+                      storage: "degraded"
+
+components:
+  schemas:
+    ScoreSubmissionRequest:
+      type: object
+      required:
+        - playerInitials
+        - survivalTime
+        - sessionSignature
+        - clientTimestamp
+      properties:
+        playerInitials:
+          type: string
+          minLength: 1
+          maxLength: 3
+          pattern: '^[A-Za-z0-9]+$'
+          description: Player initials (1-3 alphanumeric characters)
+          example: "ABC"
+        survivalTime:
+          type: number
+          format: decimal
+          minimum: 0.01
+          maximum: 20.00
+          multipleOf: 0.01
+          description: Survival time in seconds (precision to 0.01)
+          example: 18.75
+        sessionSignature:
+          type: string
+          minLength: 40
+          maxLength: 64
+          pattern: '^[a-fA-F0-9]+$'
+          description: SHA-256 hash of session data for validation
+          example: "a1b2c3d4e5f6789012345678901234567890abcdef"
+        clientTimestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of game completion
+          example: "2025-09-13T15:30:45.123Z"
+
+    ScoreSubmissionResponse:
+      type: object
+      required:
+        - success
+        - scoreId
+        - leaderboardPosition
+        - qualifiedForLeaderboard
+        - message
+      properties:
+        success:
+          type: boolean
+          description: Whether the submission was successful
+          example: true
+        scoreId:
+          type: string
+          format: uuid
+          description: Unique identifier for the submitted score
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        leaderboardPosition:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Position on leaderboard (1-10, null if not qualified)
+          example: 3
+        qualifiedForLeaderboard:
+          type: boolean
+          description: Whether score qualified for top 10 leaderboard
+          example: true
+        message:
+          type: string
+          description: Human-readable success message
+          example: "Score submitted successfully"
+
+    LeaderboardResponse:
+      type: object
+      required:
+        - success
+        - leaderboard
+        - lastUpdated
+        - totalEntries
+      properties:
+        success:
+          type: boolean
+          description: Whether the request was successful
+          example: true
+        leaderboard:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+          maxItems: 10
+          description: Array of top 10 leaderboard entries
+        lastUpdated:
+          type: string
+          format: date-time
+          description: When leaderboard was last updated
+          example: "2025-09-13T15:30:45.123Z"
+        totalEntries:
+          type: integer
+          minimum: 0
+          maximum: 10
+          description: Total number of entries in leaderboard
+          example: 3
+
+    LeaderboardEntry:
+      type: object
+      required:
+        - position
+        - playerInitials
+        - survivalTime
+        - achievedAt
+      properties:
+        position:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Ranking position (1-10)
+          example: 1
+        playerInitials:
+          type: string
+          minLength: 1
+          maxLength: 3
+          description: Player initials
+          example: "PRO"
+        survivalTime:
+          type: number
+          format: decimal
+          minimum: 0.01
+          maximum: 20.00
+          description: Survival time in seconds
+          example: 20.00
+        achievedAt:
+          type: string
+          format: date-time
+          description: When score was achieved
+          example: "2025-09-13T14:15:30.000Z"
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - version
+        - checks
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: Overall service health status
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+          example: "2025-09-13T15:30:45.123Z"
+        version:
+          type: string
+          description: API version
+          example: "1.0.0"
+        checks:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [healthy, degraded, unhealthy]
+              description: Database connection status
+              example: "healthy"
+            cache:
+              type: string
+              enum: [healthy, degraded, unhealthy]
+              description: Cache service status
+              example: "healthy"
+            storage:
+              type: string
+              enum: [healthy, degraded, unhealthy]
+              description: Storage service status
+              example: "healthy"
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+        - message
+        - timestamp
+        - requestId
+      properties:
+        success:
+          type: boolean
+          description: Always false for error responses
+          example: false
+        error:
+          type: string
+          enum: 
+            - VALIDATION_FAILED
+            - RATE_LIMITED
+            - SERVER_ERROR
+            - SERVICE_UNAVAILABLE
+            - INVALID_SIGNATURE
+            - DUPLICATE_SUBMISSION
+          description: Machine-readable error code
+          example: "VALIDATION_FAILED"
+        message:
+          type: string
+          description: Human-readable error description
+          example: "Player initials must be 1-3 alphanumeric characters"
+        details:
+          type: object
+          description: Additional error details (optional)
+          properties:
+            field:
+              type: string
+              description: Field that caused the error
+              example: "playerInitials"
+            value:
+              type: string
+              description: Value that was submitted
+              example: "TOOLONG"
+            constraint:
+              type: string
+              description: Validation constraint that failed
+              example: "length_1_to_3_alphanumeric"
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+          example: "2025-09-13T15:30:45.123Z"
+        requestId:
+          type: string
+          description: Unique request identifier for debugging
+          example: "req_123456789"
+        retryAfter:
+          type: integer
+          description: Seconds to wait before retrying (rate limit errors only)
+          example: 60
+
+  securitySchemes: {}
+
+tags:
+  - name: Scores
+    description: Score submission and leaderboard operations
+  - name: System
+    description: System health and monitoring operations

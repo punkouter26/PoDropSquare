@@ -1,0 +1,45 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug PoDropSquare API",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build-api",
+            "program": "${workspaceFolder}/backend/src/Po.PoDropSquare.Api/bin/Debug/net9.0/Po.PoDropSquare.Api.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/backend/src/Po.PoDropSquare.Api",
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "sourceFileMap": {
+                "/Views": "${workspaceFolder}/Views"
+            },
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            },
+            "requireExactSource": false
+        },
+        {
+            "name": "Debug PoDropSquare Blazor",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build-blazor",
+            "program": "${workspaceFolder}/frontend/src/Po.PoDropSquare.Blazor/bin/Debug/net9.0/Po.PoDropSquare.Blazor.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/frontend/src/Po.PoDropSquare.Blazor",
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "sourceFileMap": {
+                "/Views": "${workspaceFolder}/Views"
+            },
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            },
+            "requireExactSource": false
+        }
+    ]
+}

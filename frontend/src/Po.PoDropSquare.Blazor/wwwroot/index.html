@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PoDropSquare</title>
+    <base href="/" />
+    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link href="Po.PoDropSquare.Blazor.styles.css" rel="stylesheet" />
+</head>
+
+<body>
+    <div id="app">
+        <svg class="loading-progress">
+            <circle r="40%" cx="50%" cy="50%" />
+            <circle r="40%" cx="50%" cy="50%" />
+        </svg>
+        <div class="loading-progress-text"></div>
+    </div>
+
+    <div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>
+    
+    <!-- Matter.js Physics Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <!-- Custom Physics Interop -->
+    <script src="js/physics-engine.js"></script>
+
+    <!-- Global Error Handler -->
+    <script>
+        // Global error handler for unhandled JavaScript errors
+        window.onerror = function(message, source, lineno, colno, error) {
+            sendErrorToServer({
+                message: message || 'Unknown error',
+                filename: source || '',
+                lineNumber: lineno || 0,
+                columnNumber: colno || 0,
+                stack: error?.stack || '',
+                timestamp: new Date().toISOString(),
+                url: window.location.href
+            });
+            return false; // Don't prevent default browser error handling
+        };
+
+        // Handler for unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(event) {
+            sendErrorToServer({
+                message: 'Unhandled promise rejection: ' + (event.reason?.message || event.reason || 'Unknown'),
+                filename: '',
+                lineNumber: 0,
+                columnNumber: 0,
+                stack: event.reason?.stack || '',
+                timestamp: new Date().toISOString(),
+                url: window.location.href
+            });
+        });
+
+        // Function to send errors to the server
+        function sendErrorToServer(errorData) {
+            try {
+                fetch('http://localhost:5000/api/log/error', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(errorData)
+                }).catch(function(fetchError) {
+                    // Fail silently if we can't send the error to the server
+                    console.warn('Failed to send error to server:', fetchError);
+                });
+            } catch (e) {
+                // Fail silently to avoid infinite error loops
+                console.warn('Error in sendErrorToServer:', e);
+            }
+        }
+
+        // Optional: Hook into console.error to capture logged errors
+        const originalConsoleError = console.error;
+        console.error = function() {
+            // Call original console.error
+            originalConsoleError.apply(console, arguments);
+            
+            // Send to server
+            const message = Array.from(arguments).map(arg => 
+                typeof arg === 'string' ? arg : JSON.stringify(arg)
+            ).join(' ');
+            
+            sendErrorToServer({
+                message: 'Console Error: ' + message,
+                filename: '',
+                lineNumber: 0,
+                columnNumber: 0,
+                stack: '',
+                timestamp: new Date().toISOString(),
+                url: window.location.href
+            });
+        };
+    </script>
+
+    <script src="_framework/blazor.webassembly.js"></script>
+</body>
+
+</html>

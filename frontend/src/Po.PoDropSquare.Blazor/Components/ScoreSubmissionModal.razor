@@ -1,0 +1,779 @@
+@using Po.PoDropSquare.Blazor.Models
+@using System.Net.Http.Json
+@using System.ComponentModel.DataAnnotations
+@inject HttpClient Http
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop" @onclick="HandleBackdropClick">
+        <div class="score-modal" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    @if (IsNewHighScore)
+                    {
+                        <span class="celebration-icon">🎉</span>
+                        <span>New High Score!</span>
+                    }
+                    else
+                    {
+                        <span class="trophy-icon">🏆</span>
+                        <span>Game Complete!</span>
+                    }
+                </h2>
+                
+                @if (AllowClose)
+                {
+                    <button class="close-btn" @onclick="CloseModal" aria-label="Close">×</button>
+                }
+            </div>
+
+            <div class="modal-content">
+                <div class="score-display">
+                    <div class="final-score">
+                        <span class="score-label">Your Score</span>
+                        <span class="score-value">@Score.ToString("N0")</span>
+                    </div>
+                    
+                    @if (GameDuration.HasValue)
+                    {
+                        <div class="game-stats">
+                            <div class="stat-item">
+                                <span class="stat-icon">⏱️</span>
+                                <span class="stat-label">Time</span>
+                                <span class="stat-value">@FormatDuration(GameDuration.Value)</span>
+                            </div>
+                            
+                            @if (Rank.HasValue)
+                            {
+                                <div class="stat-item">
+                                    <span class="stat-icon">📊</span>
+                                    <span class="stat-label">Rank</span>
+                                    <span class="stat-value">#@Rank</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (!IsSubmitted)
+                {
+                    <div class="submission-form">
+                        <h3>Save Your Score</h3>
+                        
+                        <div class="input-group">
+                            <label for="playerName">Enter Your Name:</label>
+                            <input 
+                                id="playerName"
+                                type="text" 
+                                @bind="playerName" 
+                                @onkeypress="HandleKeyPress"
+                                placeholder="Your name here..."
+                                maxlength="50"
+                                disabled="@IsSubmitting"
+                                class="player-name-input @(HasValidationError ? "error" : "")"
+                                autocomplete="off" />
+                            
+                            @if (HasValidationError)
+                            {
+                                <span class="validation-error">@ValidationMessage</span>
+                            }
+                        </div>
+
+                        <div class="character-counter">
+                            @playerName.Length / 50 characters
+                        </div>
+
+                        <div class="form-actions">
+                            <button 
+                                class="submit-btn primary" 
+                                @onclick="SubmitScore" 
+                                disabled="@(IsSubmitting || string.IsNullOrWhiteSpace(playerName))">
+                                @if (IsSubmitting)
+                                {
+                                    <span class="spinner"></span>
+                                    <span>Submitting...</span>
+                                }
+                                else
+                                {
+                                    <span>💾 Save Score</span>
+                                }
+                            </button>
+                            
+                            @if (AllowSkip)
+                            {
+                                <button class="skip-btn secondary" @onclick="SkipSubmission" disabled="@IsSubmitting">
+                                    Skip
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="submission-result">
+                        @if (SubmissionSuccess)
+                        {
+                            <div class="success-message">
+                                <span class="success-icon">✅</span>
+                                <h3>Score Saved Successfully!</h3>
+                                <p>@SubmissionMessage</p>
+                                
+                                @if (Rank.HasValue)
+                                {
+                                    <div class="rank-display">
+                                        <span class="rank-text">Your Rank: </span>
+                                        <span class="rank-value">#@Rank</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="error-message">
+                                <span class="error-icon">❌</span>
+                                <h3>Submission Failed</h3>
+                                <p>@SubmissionMessage</p>
+                                
+                                <button class="retry-btn" @onclick="RetrySubmission">
+                                    🔄 Try Again
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="modal-footer">
+                @if (IsSubmitted && SubmissionSuccess)
+                {
+                    <button class="action-btn primary" @onclick="ViewLeaderboard">
+                        🏆 View Leaderboard
+                    </button>
+                    <button class="action-btn secondary" @onclick="PlayAgain">
+                        🎮 Play Again
+                    </button>
+                }
+                else if (AllowClose)
+                {
+                    <button class="action-btn secondary" @onclick="CloseModal">
+                        Close
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; } = false;
+    [Parameter] public int Score { get; set; }
+    [Parameter] public TimeSpan? GameDuration { get; set; }
+    [Parameter] public bool IsNewHighScore { get; set; } = false;
+    [Parameter] public int? Rank { get; set; }
+    [Parameter] public bool AllowClose { get; set; } = true;
+    [Parameter] public bool AllowSkip { get; set; } = true;
+    [Parameter] public string? SessionId { get; set; }
+    [Parameter] public EventCallback<PlayerScore> OnScoreSubmitted { get; set; }
+    [Parameter] public EventCallback OnModalClosed { get; set; }
+    [Parameter] public EventCallback OnPlayAgain { get; set; }
+    [Parameter] public EventCallback OnViewLeaderboard { get; set; }
+
+    private string playerName = string.Empty;
+    private bool IsSubmitting = false;
+    private bool IsSubmitted = false;
+    private bool SubmissionSuccess = false;
+    private string SubmissionMessage = string.Empty;
+    private bool HasValidationError = false;
+    private string ValidationMessage = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        // Reset state when modal becomes visible
+        if (IsVisible && !IsSubmitted)
+        {
+            ResetForm();
+        }
+    }
+
+    private void ResetForm()
+    {
+        playerName = string.Empty;
+        IsSubmitting = false;
+        IsSubmitted = false;
+        SubmissionSuccess = false;
+        SubmissionMessage = string.Empty;
+        HasValidationError = false;
+        ValidationMessage = string.Empty;
+    }
+
+    private bool ValidateInput()
+    {
+        HasValidationError = false;
+        ValidationMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(playerName))
+        {
+            HasValidationError = true;
+            ValidationMessage = "Please enter your name";
+            return false;
+        }
+
+        if (playerName.Length < 2)
+        {
+            HasValidationError = true;
+            ValidationMessage = "Name must be at least 2 characters";
+            return false;
+        }
+
+        if (playerName.Length > 50)
+        {
+            HasValidationError = true;
+            ValidationMessage = "Name must be 50 characters or less";
+            return false;
+        }
+
+        // Check for inappropriate content (basic filter)
+        var inappropriate = new[] { "fuck", "shit", "damn", "admin", "test", "null", "undefined" };
+        if (inappropriate.Any(word => playerName.ToLower().Contains(word)))
+        {
+            HasValidationError = true;
+            ValidationMessage = "Please choose a different name";
+            return false;
+        }
+
+        return true;
+    }
+
+    private async Task SubmitScore()
+    {
+        if (!ValidateInput() || IsSubmitting)
+            return;
+
+        try
+        {
+            IsSubmitting = true;
+            StateHasChanged();
+
+            var submission = new PlayerScore
+            {
+                PlayerName = playerName.Trim(),
+                Score = Score,
+                GameDuration = GameDuration ?? TimeSpan.Zero,
+                SessionId = SessionId
+            };
+
+            var response = await Http.PostAsJsonAsync("/api/scores", submission);
+            
+            IsSubmitted = true;
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<ScoreSubmissionResult>();
+                
+                if (result?.Success == true)
+                {
+                    SubmissionSuccess = true;
+                    SubmissionMessage = result.Message ?? "Your score has been saved!";
+                    
+                    if (result.Rank.HasValue)
+                    {
+                        Rank = result.Rank.Value;
+                    }
+
+                    await OnScoreSubmitted.InvokeAsync(submission);
+                }
+                else
+                {
+                    SubmissionSuccess = false;
+                    SubmissionMessage = result?.Message ?? "Score submission failed";
+                }
+            }
+            else
+            {
+                SubmissionSuccess = false;
+                SubmissionMessage = response.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.BadRequest => "Invalid score data",
+                    System.Net.HttpStatusCode.TooManyRequests => "Too many submissions. Please wait.",
+                    System.Net.HttpStatusCode.InternalServerError => "Server error. Please try again.",
+                    _ => $"Submission failed ({response.StatusCode})"
+                };
+            }
+        }
+        catch (HttpRequestException)
+        {
+            IsSubmitted = true;
+            SubmissionSuccess = false;
+            SubmissionMessage = "Network error. Please check your connection.";
+        }
+        catch (Exception ex)
+        {
+            IsSubmitted = true;
+            SubmissionSuccess = false;
+            SubmissionMessage = "An unexpected error occurred.";
+            Console.WriteLine($"Score submission error: {ex.Message}");
+        }
+        finally
+        {
+            IsSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void RetrySubmission()
+    {
+        IsSubmitted = false;
+        SubmissionSuccess = false;
+        StateHasChanged();
+    }
+
+    private async Task SkipSubmission()
+    {
+        await CloseModal();
+    }
+
+    private async Task CloseModal()
+    {
+        IsVisible = false;
+        await OnModalClosed.InvokeAsync();
+    }
+
+    private async Task PlayAgain()
+    {
+        await OnPlayAgain.InvokeAsync();
+        await CloseModal();
+    }
+
+    private async Task ViewLeaderboard()
+    {
+        await OnViewLeaderboard.InvokeAsync();
+        await CloseModal();
+    }
+
+    private void HandleBackdropClick()
+    {
+        if (AllowClose && !IsSubmitting)
+        {
+            _ = CloseModal();
+        }
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(playerName))
+        {
+            await SubmitScore();
+        }
+        else if (e.Key == "Escape" && AllowClose)
+        {
+            await CloseModal();
+        }
+    }
+
+    private string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalHours >= 1)
+            return $"{(int)duration.TotalHours}:{duration.Minutes:D2}:{duration.Seconds:D2}";
+        else
+            return $"{duration.Minutes:D2}:{duration.Seconds:D2}";
+    }
+}
+
+<style>
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(5px);
+        animation: fadeIn 0.3s ease-out;
+    }
+
+    .score-modal {
+        background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+        border-radius: 15px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        max-width: 500px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        animation: slideIn 0.3s ease-out;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.05));
+    }
+
+    .modal-title {
+        margin: 0;
+        color: #fff;
+        font-size: 1.5rem;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .celebration-icon {
+        animation: bounce 1s ease-in-out infinite;
+    }
+
+    .trophy-icon {
+        filter: drop-shadow(0 2px 4px rgba(255, 215, 0, 0.5));
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        color: #ccc;
+        font-size: 2rem;
+        cursor: pointer;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+    }
+
+    .close-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+
+    .modal-content {
+        padding: 1.5rem;
+    }
+
+    .score-display {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .final-score {
+        margin-bottom: 1rem;
+    }
+
+    .score-label {
+        display: block;
+        color: #ccc;
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .score-value {
+        display: block;
+        color: #4CAF50;
+        font-size: 3rem;
+        font-weight: bold;
+        text-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
+        animation: scoreGlow 2s ease-in-out infinite;
+    }
+
+    .game-stats {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        margin-top: 1rem;
+    }
+
+    .stat-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .stat-icon {
+        font-size: 1.2rem;
+    }
+
+    .stat-label {
+        color: #999;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .stat-value {
+        color: #fff;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+
+    .submission-form {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        padding: 1.5rem;
+    }
+
+    .submission-form h3 {
+        margin: 0 0 1rem 0;
+        color: #fff;
+        text-align: center;
+    }
+
+    .input-group {
+        margin-bottom: 1rem;
+    }
+
+    .input-group label {
+        display: block;
+        color: #ccc;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    .player-name-input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        box-sizing: border-box;
+    }
+
+    .player-name-input:focus {
+        outline: none;
+        border-color: #4CAF50;
+        box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+    }
+
+    .player-name-input.error {
+        border-color: #f44336;
+        box-shadow: 0 0 10px rgba(244, 67, 54, 0.3);
+    }
+
+    .player-name-input:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .validation-error {
+        color: #f44336;
+        font-size: 0.85rem;
+        margin-top: 0.25rem;
+        display: block;
+    }
+
+    .character-counter {
+        text-align: right;
+        color: #888;
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .submit-btn, .skip-btn {
+        flex: 1;
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .submit-btn.primary {
+        background: linear-gradient(135deg, #4CAF50, #45a049);
+        color: white;
+    }
+
+    .submit-btn.primary:hover:not(:disabled) {
+        background: linear-gradient(135deg, #45a049, #3d8b40);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+    }
+
+    .submit-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .skip-btn.secondary {
+        background: rgba(255, 255, 255, 0.1);
+        color: #ccc;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .skip-btn.secondary:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+    }
+
+    .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid transparent;
+        border-top: 2px solid currentColor;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    .submission-result {
+        text-align: center;
+        padding: 1rem;
+    }
+
+    .success-message {
+        color: #4CAF50;
+    }
+
+    .error-message {
+        color: #f44336;
+    }
+
+    .success-icon, .error-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        display: block;
+    }
+
+    .submission-result h3 {
+        margin: 0 0 1rem 0;
+        color: #fff;
+    }
+
+    .submission-result p {
+        color: #ccc;
+        margin-bottom: 1rem;
+    }
+
+    .rank-display {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background: rgba(76, 175, 80, 0.1);
+        border-radius: 8px;
+        border: 1px solid rgba(76, 175, 80, 0.3);
+    }
+
+    .rank-text {
+        color: #ccc;
+    }
+
+    .rank-value {
+        color: #4CAF50;
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
+
+    .retry-btn {
+        background: #FF9800;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        cursor: pointer;
+        margin-top: 1rem;
+        transition: background 0.3s ease;
+    }
+
+    .retry-btn:hover {
+        background: #F57C00;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+    }
+
+    .action-btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        min-width: 120px;
+    }
+
+    .action-btn.primary {
+        background: linear-gradient(135deg, #4CAF50, #45a049);
+        color: white;
+    }
+
+    .action-btn.secondary {
+        background: rgba(255, 255, 255, 0.1);
+        color: #ccc;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .action-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Animations */
+    
+        to { opacity: 1; }
+    }
+
+    
+        to { 
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    
+        40% { transform: translateY(-10px); }
+        60% { transform: translateY(-5px); }
+    }
+
+    
+        50% { text-shadow: 0 4px 20px rgba(76, 175, 80, 0.6); }
+    }
+
+    
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Responsive design */
+    
+        
+        .game-stats {
+            gap: 1rem;
+        }
+        
+        .form-actions, .modal-footer {
+            flex-direction: column;
+        }
+        
+        .score-value {
+            font-size: 2.5rem;
+        }
+    }
+</style>
+

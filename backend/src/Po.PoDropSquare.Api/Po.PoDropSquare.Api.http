@@ -1,0 +1,6 @@
+@Po.PoDropSquare.Api_HostAddress = http://localhost:5197
+
+GET {{Po.PoDropSquare.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
