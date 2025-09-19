@@ -1,10 +1,245 @@
 @page "/"
+@using Po.PoDropSquare.Blazor.Models
+@using Po.PoDropSquare.Blazor.Components
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
 
-<PageTitle>Home</PageTitle>
+<PageTitle>PoDropSquare</PageTitle>
 
-<h1>PoDropSquare</h1>
+<div class="retro-game-page">
+    <!-- Retro Header -->
+    <div class="retro-header">
+        <h1 class="retro-title">PODROPSQUARE</h1>
+        <div class="retro-nav-buttons">
+            <a href="/highscores" class="retro-btn">TOP 10 SCORES</a>
+        </div>
+    </div>
 
-Welcome to your new app.<br />
+    <!-- Game Section -->
+    <div class="retro-game-section">
+        <div class="retro-game-info">
+            <div class="retro-score">
+                SCORE: <span class="score-value">@_currentScore</span>
+            </div>
+            
+            <div class="retro-timer">
+                <TimerDisplay 
+                    Config="_timerConfig"
+                    IsActive="_gameState == GameState.Playing"
+                    ShowGameTime="false"
+                    ShowProgress="false"
+                    ShowLabel="false"
+                    OnTimeUp="OnTimeUp"
+                    OnTimeChanged="OnTimeChanged"
+                    @ref="_timerRef" />
+            </div>
+        </div>
 
-<a href="/game" class="btn btn-primary">Play Game</a>
+        <div class="retro-game-canvas-container">
+            <GameCanvas 
+                CanvasId="mainGameCanvas"
+                CanvasWidth="600"
+                CanvasHeight="400"
+                OnGameEvent="OnGameEvent"
+                OnScoreChanged="OnScoreChanged"
+                OnGameStateChanged="OnGameStateChanged"
+                @ref="_gameCanvasRef" />
+                
+            @if (_gameState == GameState.NotStarted || _gameState == GameState.GameOver)
+            {
+                <div class="retro-game-overlay">
+                    <div class="retro-overlay-content">
+                        @if (_gameState == GameState.NotStarted)
+                        {
+                            <h2>&gt;&gt;&gt; CLICK TO START &lt;&lt;&lt;</h2>
+                            <p>DROP BLOCKS BY CLICKING</p>
+                        }
+                        else if (_showGameOverScreen)
+                        {
+                            @if (_isVictory)
+                            {
+                                <h2>*** VICTORY! ***</h2>
+                                <p>BLOCK HELD ABOVE RED LINE FOR 2 SECONDS!</p>
+                                <p>SCORE: @_finalScore</p>
+                                <p>TIME: @FormatTime(_finalGameTime ?? TimeSpan.Zero)</p>
+                                <button class="retro-restart-btn" @onclick="RestartGame">PLAY AGAIN</button>
+                            }
+                            else
+                            {
+                                <h2>GAME OVER</h2>
+                                <p>SCORE: @_finalScore</p>
+                                <p>TIME: @FormatTime(_finalGameTime ?? TimeSpan.Zero)</p>
+                                <button class="retro-restart-btn" @onclick="RestartGame">PLAY AGAIN</button>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
 
+    <!-- Mini High Scores Section -->
+    <div class="retro-scores-section">
+        <h3>HIGH SCORES</h3>
+        <div class="retro-scores-list">
+            <LeaderboardDisplay 
+                Title=""
+                MaxEntries="5"
+                IsCompact="true"
+                ShowRefreshButton="false"
+                @ref="_leaderboardRef" />
+        </div>
+    </div>
+</div>
+
+@code {
+    // Component references
+    private GameCanvas? _gameCanvasRef;
+    private TimerDisplay? _timerRef;
+    private LeaderboardDisplay? _leaderboardRef;
+
+    // Game state - Simplified
+    private GameState _gameState = GameState.NotStarted;
+    private int _currentScore = 0;
+    private int _blocksPlaced = 0;
+    private TimeSpan _currentGameTime = TimeSpan.Zero;
+    private DateTime _gameStartTime;
+    
+    // End game state
+    private bool _showGameOverScreen = false;
+    private bool _isVictory = false;
+    private int _finalScore = 0;
+    private TimeSpan? _finalGameTime;
+    
+    // Configuration - Simplified
+    private TimerConfig _timerConfig = new() { TotalSeconds = 300 }; // 5 minutes
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Auto-start on first load
+            await Task.Delay(1000); // Brief delay for initialization
+            await StartGame();
+        }
+    }
+
+    private async Task StartGame()
+    {
+        _gameState = GameState.Playing;
+        _blocksPlaced = 0;
+        _currentScore = 0;
+        _showGameOverScreen = false;
+        _isVictory = false;
+        
+        if (_gameCanvasRef != null)
+        {
+            _gameStartTime = DateTime.UtcNow;
+            _currentGameTime = TimeSpan.Zero;
+            
+            await InvokeAsync(StateHasChanged);
+            
+            _timerRef?.StartTimer();
+            await _gameCanvasRef.StartGame();
+        }
+    }
+
+    private async Task RestartGame()
+    {
+        _timerRef?.ResetTimer();
+        await Task.Delay(500);
+        await StartGame();
+    }
+
+    private void OnGameStateChanged(GameState newState)
+    {
+        _gameState = newState;
+        StateHasChanged();
+    }
+
+    private void OnScoreChanged(ScoreChangedArgs args)
+    {
+        // Simplified Scoring: blocks placed × seconds survived
+        _currentGameTime = args.GameTime;
+        var secondsSurvived = (int)_currentGameTime.TotalSeconds;
+        _currentScore = _blocksPlaced * Math.Max(1, secondsSurvived);
+        StateHasChanged();
+    }
+
+    private async Task OnGameEvent(GameEventArgs args)
+    {
+        switch (args.EventType)
+        {
+            case GameEventType.BlockLanded:
+                _blocksPlaced++;
+                // Update score immediately when block is placed
+                var currentSeconds = (int)_currentGameTime.TotalSeconds;
+                _currentScore = _blocksPlaced * Math.Max(1, currentSeconds);
+                break;
+                
+            case GameEventType.GameOver:
+                await EndGame();
+                break;
+                
+            case GameEventType.GoalReached:
+                await EndGameWithVictory();
+                break;
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task OnTimeUp()
+    {
+        await EndGame();
+    }
+
+    private void OnTimeChanged(TimeSpan remaining)
+    {
+        // Update score based on time survived
+        var secondsSurvived = 300 - (int)remaining.TotalSeconds;
+        _currentScore = _blocksPlaced * Math.Max(1, secondsSurvived);
+        StateHasChanged();
+    }
+
+    private async Task EndGame()
+    {
+        _finalScore = _currentScore;
+        _finalGameTime = _currentGameTime;
+        _gameState = GameState.GameOver;
+        _showGameOverScreen = true;
+        _isVictory = false;
+        
+        _timerRef?.StopTimer();
+        
+        if (_gameCanvasRef != null)
+        {
+            await _gameCanvasRef.StopGame();
+        }
+        
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task EndGameWithVictory()
+    {
+        _finalScore = _currentScore;
+        _finalGameTime = _currentGameTime;
+        _gameState = GameState.GameOver;
+        _showGameOverScreen = true;
+        _isVictory = true;
+        
+        _timerRef?.StopTimer();
+        
+        if (_gameCanvasRef != null)
+        {
+            await _gameCanvasRef.StopGame();
+        }
+        
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string FormatTime(TimeSpan time)
+    {
+        return $"{time.Minutes:D2}:{time.Seconds:D2}";
+    }
+}

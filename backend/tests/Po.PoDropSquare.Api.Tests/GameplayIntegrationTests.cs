@@ -192,10 +192,10 @@ public class GameplayIntegrationTests : IClassFixture<WebApplicationFactory<Prog
         var session1Task = _client.PostAsync("/api/game/start", null);
         var session2Task = _client.PostAsync("/api/game/start", null);
 
-        await Task.WhenAll(session1Task, session2Task);
+        var responses = await Task.WhenAll(session1Task, session2Task);
 
-        var session1Data = await session1Task.Result.Content.ReadAsStringAsync();
-        var session2Data = await session2Task.Result.Content.ReadAsStringAsync();
+        var session1Data = await responses[0].Content.ReadAsStringAsync();
+        var session2Data = await responses[1].Content.ReadAsStringAsync();
 
         var session1 = JsonSerializer.Deserialize<GameSession>(session1Data, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         var session2 = JsonSerializer.Deserialize<GameSession>(session2Data, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
@@ -225,11 +225,11 @@ public class GameplayIntegrationTests : IClassFixture<WebApplicationFactory<Prog
         var result1Task = _client.PostAsJsonAsync("/api/game/place-block", placement1);
         var result2Task = _client.PostAsJsonAsync("/api/game/place-block", placement2);
 
-        await Task.WhenAll(result1Task, result2Task);
+        var results = await Task.WhenAll(result1Task, result2Task);
 
         // Assert: Both sessions should handle requests independently
-        Assert.Equal(System.Net.HttpStatusCode.OK, result1Task.Result.StatusCode);
-        Assert.Equal(System.Net.HttpStatusCode.OK, result2Task.Result.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.OK, results[0].StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.OK, results[1].StatusCode);
     }
 
     [Fact]

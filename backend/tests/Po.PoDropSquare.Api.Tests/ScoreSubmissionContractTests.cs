@@ -82,10 +82,10 @@ public class ScoreSubmissionContractTests : IClassFixture<WebApplicationFactory<
     }
 
     [Theory]
-    [InlineData("", "Player initials cannot be empty")]
-    [InlineData("TOOLONG", "Player initials must be 1-3 characters")]
-    [InlineData("AB!", "Player initials must be alphanumeric")]
-    [InlineData("ab", "Player initials must be uppercase")]
+    [InlineData("")]
+    [InlineData("TOOLONG")]
+    [InlineData("AB!")]
+    [InlineData("ab")]
     public async Task POST_Scores_WithInvalidPlayerInitials_ShouldReturn400(string invalidInitials)
     {
         // Arrange
@@ -115,10 +115,10 @@ public class ScoreSubmissionContractTests : IClassFixture<WebApplicationFactory<
     }
 
     [Theory]
-    [InlineData(-0.5, "Survival time cannot be negative")]
-    [InlineData(0.0, "Survival time must be greater than 0")]
-    [InlineData(25.0, "Survival time cannot exceed 20 seconds")]
-    [InlineData(0.001, "Survival time precision too high")]
+    [InlineData(-0.5)]
+    [InlineData(0.0)]
+    [InlineData(25.0)]
+    [InlineData(0.001)]
     public async Task POST_Scores_WithInvalidSurvivalTime_ShouldReturn400(double invalidTime)
     {
         // Arrange
@@ -201,7 +201,8 @@ public class ScoreSubmissionContractTests : IClassFixture<WebApplicationFactory<
 
         Assert.False(responseObject.GetProperty("success").GetBoolean());
         Assert.Equal("VALIDATION_FAILED", responseObject.GetProperty("error").GetString());
-        Assert.Contains("timestamp", responseObject.GetProperty("message").GetString().ToLower());
+        var messageValue = responseObject.GetProperty("message").GetString();
+        Assert.Contains("timestamp", messageValue?.ToLower() ?? string.Empty);
     }
 
     [Fact]
@@ -289,7 +290,7 @@ public class ScoreSubmissionContractTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
-    public void Dispose()
+    public void CleanupResources()
     {
         Dispose(true);
         GC.SuppressFinalize(this);

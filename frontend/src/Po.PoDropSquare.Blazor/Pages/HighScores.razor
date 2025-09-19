@@ -1,0 +1,61 @@
+@page "/highscores"
+@using Po.PoDropSquare.Blazor.Components
+@inject NavigationManager Navigation
+
+<PageTitle>PoDropSquare - Top 10 Scores</PageTitle>
+
+<div class="retro-high-scores-page">
+    <div class="retro-header">
+        <h1 class="retro-title">TOP 10 SCORES</h1>
+        <div class="retro-nav-buttons">
+            <a href="/" class="retro-btn">BACK TO GAME</a>
+        </div>
+    </div>
+
+    <div class="retro-scores-content">
+        <div class="retro-leaderboard-section">
+            <LeaderboardDisplay 
+                Title=""
+                MaxEntries="10"
+                IsCompact="false"
+                CurrentPlayerName="@_currentPlayerName"
+                AutoRefresh="true"
+                ShowRefreshButton="true"
+                @ref="_leaderboardRef" />
+        </div>
+
+        <div class="retro-actions-section">
+            <div class="retro-action-buttons">
+                <button class="retro-restart-btn" @onclick="PlayGame">
+                    PLAY GAME
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LeaderboardDisplay? _leaderboardRef;
+    private string _currentPlayerName = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        LoadPlayerPreferences();
+    }
+
+    private void LoadPlayerPreferences()
+    {
+        // In a real app, load from localStorage or user profile
+        _currentPlayerName = "Player"; // Would load from storage
+    }
+
+    private void PlayGame()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private void GoToHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

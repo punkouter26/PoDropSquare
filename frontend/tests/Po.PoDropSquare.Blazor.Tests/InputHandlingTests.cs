@@ -4,6 +4,7 @@ using Microsoft.JSInterop;
 using Xunit;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using Microsoft.AspNetCore.Components;
 
 namespace Po.PoDropSquare.Blazor.Tests;
 
@@ -369,7 +370,7 @@ public class InputHandlingTests : TestContext, IDisposable
         var handlerUpdateCall = mockJS.Invocations.FirstOrDefault(i => i.Identifier == "updateInputHandlers");
     }
 
-    public void Dispose()
+    public new void Dispose()
     {
         _appComponent?.Dispose();
         base.Dispose();

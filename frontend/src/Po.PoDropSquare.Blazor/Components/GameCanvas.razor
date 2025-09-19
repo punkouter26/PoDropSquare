@@ -8,11 +8,6 @@
             class="game-canvas"
             width="@CanvasWidth" 
             height="@CanvasHeight"
-            @onkeydown="HandleKeyDown"
-            @onkeyup="HandleKeyUp"
-            @onmousedown="HandleMouseDown"
-            @onmouseup="HandleMouseUp"
-            @onmousemove="HandleMouseMove"
             @onclick="HandleClick"
             tabindex="0">
         Your browser does not support HTML5 Canvas.
@@ -36,6 +31,17 @@
                         <button class="btn btn-primary" @onclick="ResumeGame">Resume</button>
                     </div>
                 }
+            </div>
+        </div>
+    }
+    
+    @if (_isDangerCountdownActive)
+    {
+        <div class="victory-countdown-overlay">
+            <div class="victory-countdown">
+                <div class="victory-title">🏆 VICTORY COUNTDOWN! 🏆</div>
+                <div class="countdown-timer">@_dangerCountdownElapsed.ToString("F1") / 2.0</div>
+                <div class="victory-message">Keep block above red line!</div>
             </div>
         </div>
     }
@@ -67,12 +73,9 @@
     private DateTime _gameStartTime;
     private bool _isDisposed = false;
 
-    // Input state tracking
-    private bool _leftPressed = false;
-    private bool _rightPressed = false;
-    private bool _downPressed = false;
-    private double _lastMouseX = 0;
-    private double _lastMouseY = 0;
+    // Victory countdown state
+    private bool _isDangerCountdownActive = false;
+    private double _dangerCountdownElapsed = 0;
 
     public GameState GameState 
     { 
@@ -210,9 +213,6 @@
 
         try
         {
-            // Process continuous input
-            await ProcessContinuousInput();
-            
             // Update physics
             await JSRuntime.InvokeVoidAsync("updatePhysics");
             
@@ -226,106 +226,19 @@
         }
     }
 
-    private async Task ProcessContinuousInput()
-    {
-        if (!_physicsInitialized) return;
-
-        // Handle continuous key presses
-        if (_leftPressed)
-        {
-            await JSRuntime.InvokeVoidAsync("moveBlockLeft");
-        }
-        if (_rightPressed)
-        {
-            await JSRuntime.InvokeVoidAsync("moveBlockRight");
-        }
-        if (_downPressed)
-        {
-            await JSRuntime.InvokeVoidAsync("dropBlockFast");
-        }
-    }
-
-    // Input event handlers
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (GameState != GameState.Playing) 
-        {
-            if (e.Key == " " && GameState == GameState.Ready)
-            {
-                await StartGame();
-            }
-            else if (e.Key == " " && GameState == GameState.Paused)
-            {
-                await ResumeGame();
-            }
-            return;
-        }
-
-        switch (e.Key)
-        {
-            case "ArrowLeft":
-                _leftPressed = true;
-                break;
-            case "ArrowRight":
-                _rightPressed = true;
-                break;
-            case "ArrowDown":
-                _downPressed = true;
-                break;
-            case " ": // Space
-                await PauseGame();
-                break;
-            case "Escape":
-                await StopGame();
-                break;
-        }
-    }
-
-    private void HandleKeyUp(KeyboardEventArgs e)
-    {
-        switch (e.Key)
-        {
-            case "ArrowLeft":
-                _leftPressed = false;
-                break;
-            case "ArrowRight":
-                _rightPressed = false;
-                break;
-            case "ArrowDown":
-                _downPressed = false;
-                break;
-        }
-    }
-
-    private async Task HandleMouseDown(MouseEventArgs e)
-    {
-        if (GameState == GameState.Playing && _physicsInitialized)
-        {
-            _lastMouseX = e.OffsetX;
-            _lastMouseY = e.OffsetY;
-        }
-    }
-
-    private async Task HandleMouseUp(MouseEventArgs e)
-    {
-        // Future: Could implement drag and drop functionality
-    }
-
-    private async Task HandleMouseMove(MouseEventArgs e)
-    {
-        if (GameState == GameState.Playing)
-        {
-            _lastMouseX = e.OffsetX;
-            _lastMouseY = e.OffsetY;
-        }
-    }
-
+    // Simplified input handler - Click to drop blocks
     private async Task HandleClick(MouseEventArgs e)
     {
         if (GameState == GameState.Playing && _physicsInitialized)
         {
             // Drop block at mouse position
             await JSRuntime.InvokeVoidAsync("dropBlockAtPosition", e.OffsetX, e.OffsetY);
+            
+            // Update game statistics
+            await OnGameEvent.InvokeAsync(new GameEventArgs 
+            { 
+                EventType = GameEventType.BlockLanded
+            });
         }
         else if (GameState == GameState.Ready)
         {
@@ -362,6 +275,51 @@
         await StopGame();
     }
 
+    [JSInvokable]
+    public async Task OnDangerCountdownStarted()
+    {
+        _isDangerCountdownActive = true;
+        _dangerCountdownElapsed = 0;
+        Console.WriteLine("Danger countdown started!");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task OnDangerCountdownUpdate(double elapsedSeconds)
+    {
+        _dangerCountdownElapsed = elapsedSeconds;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task OnDangerCountdownCancelled()
+    {
+        _isDangerCountdownActive = false;
+        _dangerCountdownElapsed = 0;
+        Console.WriteLine("Danger countdown cancelled!");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task OnDangerGameOver()
+    {
+        _isDangerCountdownActive = false;
+        _dangerCountdownElapsed = 0;
+        Console.WriteLine("Game over due to danger countdown!");
+        await StopGame();
+        await OnGameEvent.InvokeAsync(new GameEventArgs { EventType = GameEventType.GameOver, Score = _currentScore });
+    }
+
+    [JSInvokable]
+    public async Task OnVictoryAchieved()
+    {
+        _isDangerCountdownActive = false;
+        _dangerCountdownElapsed = 0;
+        Console.WriteLine("Victory! Block held high for 2 seconds!");
+        await StopGame();
+        await OnGameEvent.InvokeAsync(new GameEventArgs { EventType = GameEventType.GoalReached, Score = _currentScore });
+    }
+
     public async ValueTask DisposeAsync()
     {
         _isDisposed = true;
@@ -380,4 +338,65 @@
         _dotNetRef?.Dispose();
     }
 }
+
+<style>
+    .danger-countdown-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 0, 0, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        pointer-events: none;
+        animation: dangerPulse 0.5s ease-in-out infinite alternate;
+    }
+
+    .danger-countdown {
+        background: rgba(255, 0, 0, 0.9);
+        color: white;
+        padding: 2rem;
+        border-radius: 20px;
+        text-align: center;
+        border: 3px solid #fff;
+        box-shadow: 0 0 30px rgba(255, 0, 0, 0.8);
+        animation: shake 0.2s ease-in-out infinite;
+    }
+
+    .danger-title {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    .countdown-timer {
+        font-size: 3rem;
+        font-weight: bold;
+        margin: 1rem 0;
+        color: #ffff00;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        font-family: 'Courier New', monospace;
+    }
+
+    .danger-message {
+        font-size: 1.2rem;
+        font-weight: bold;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    @@keyframes dangerPulse {
+        0% { background: rgba(255, 0, 0, 0.1); }
+        100% { background: rgba(255, 0, 0, 0.3); }
+    }
+
+    @@keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-2px); }
+        75% { transform: translateX(2px); }
+    }
+</style>
 

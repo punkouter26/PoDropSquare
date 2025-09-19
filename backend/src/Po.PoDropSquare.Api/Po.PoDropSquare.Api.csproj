@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Azure.Data.Tables" Version="12.11.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.9" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="9.0.9" />
     <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
@@ -21,6 +22,7 @@
     <ProjectReference Include="..\Po.PoDropSquare.Core\Po.PoDropSquare.Core.csproj" />
     <ProjectReference Include="..\Po.PoDropSquare.Data\Po.PoDropSquare.Data.csproj" />
     <ProjectReference Include="..\Po.PoDropSquare.Services\Po.PoDropSquare.Services.csproj" />
+    <ProjectReference Include="..\..\..\frontend\src\Po.PoDropSquare.Blazor\Po.PoDropSquare.Blazor.csproj" />
   </ItemGroup>
 
 </Project>

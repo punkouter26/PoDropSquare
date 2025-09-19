@@ -1,0 +1,133 @@
+@page "/howtoplay"
+@inject NavigationManager Navigation
+
+<PageTitle>PoDropSquare - How to Play</PageTitle>
+
+<div class="how-to-play-page">
+    <div class="page-header">
+        <h1 class="page-title">
+            <span class="page-icon">📖</span>
+            How to Play PoDropSquare
+        </h1>
+        <p class="page-subtitle">Master the art of block dropping</p>
+    </div>
+
+    <div class="instructions-content">
+        <div class="instructions-grid">
+            <div class="instruction-card">
+                <div class="card-header">
+                    <span class="card-icon">🎯</span>
+                    <h3>Objective</h3>
+                </div>
+                <div class="card-content">
+                    <p>Drop blocks strategically to build up and reach the goal line. The higher you build, the more points you score!</p>
+                </div>
+            </div>
+
+            <div class="instruction-card">
+                <div class="card-header">
+                    <span class="card-icon">⏰</span>
+                    <h3>Time Limit</h3>
+                </div>
+                <div class="card-content">
+                    <p>You have a limited time to achieve your goal. Watch the timer and make every second count!</p>
+                </div>
+            </div>
+
+            <div class="instruction-card">
+                <div class="card-header">
+                    <span class="card-icon">🎮</span>
+                    <h3>Controls</h3>
+                </div>
+                <div class="card-content">
+                    <ul>
+                        <li><strong>Click</strong> to drop blocks</li>
+                        <li><strong>Move mouse</strong> to aim</li>
+                        <li><strong>Space</strong> to pause/resume</li>
+                        <li><strong>ESC</strong> to stop game</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="instruction-card">
+                <div class="card-header">
+                    <span class="card-icon">🏆</span>
+                    <h3>Scoring</h3>
+                </div>
+                <div class="card-content">
+                    <ul>
+                        <li>Points for each block placed</li>
+                        <li>Bonus points for reaching height milestones</li>
+                        <li>Combo multipliers for quick placement</li>
+                        <li>Time bonus for fast completion</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="instruction-card">
+                <div class="card-header">
+                    <span class="card-icon">💡</span>
+                    <h3>Tips & Strategy</h3>
+                </div>
+                <div class="card-content">
+                    <ul>
+                        <li>Plan your placement for maximum stability</li>
+                        <li>Build a solid foundation first</li>
+                        <li>Look for opportunities to clear lines</li>
+                        <li>Don't rush - accuracy beats speed</li>
+                        <li>Watch the timer but don't panic</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="instruction-card">
+                <div class="card-header">
+                    <span class="card-icon">🎲</span>
+                    <h3>Game Modes</h3>
+                </div>
+                <div class="card-content">
+                    <ul>
+                        <li><strong>Classic:</strong> Build as high as possible</li>
+                        <li><strong>Time Attack:</strong> Race against the clock</li>
+                        <li><strong>Precision:</strong> Accuracy challenges</li>
+                        <li><strong>Endless:</strong> No time limit, just build!</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="actions-section">
+            <div class="action-buttons">
+                <button class="btn btn-primary" @onclick="StartPlaying">
+                    <span class="btn-icon">🚀</span>
+                    Start Playing
+                </button>
+                <button class="btn btn-secondary" @onclick="ViewHighScores">
+                    <span class="btn-icon">🏆</span>
+                    High Scores
+                </button>
+                <button class="btn btn-outline" @onclick="GoToHome">
+                    <span class="btn-icon">🏠</span>
+                    Home
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private void StartPlaying()
+    {
+        Navigation.NavigateTo("/game");
+    }
+
+    private void ViewHighScores()
+    {
+        Navigation.NavigateTo("/highscores");
+    }
+
+    private void GoToHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

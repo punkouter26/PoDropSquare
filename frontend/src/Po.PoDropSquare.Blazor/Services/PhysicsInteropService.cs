@@ -20,6 +20,12 @@ public class PhysicsInteropService : IAsyncDisposable
     public event Action<string, string>? BlockCollision;
     public event Action<ScoreUpdateEventArgs>? ScoreUpdate;
     public event Action<GameStateChangeEventArgs>? GameStateChange;
+    
+    // Danger countdown events
+    public event Action? DangerCountdownStarted;
+    public event Action<double>? DangerCountdownUpdate;
+    public event Action? DangerCountdownCancelled;
+    public event Action? DangerGameOver;
 
     public PhysicsInteropService(IJSRuntime jsRuntime)
     {
@@ -398,6 +404,73 @@ public class PhysicsInteropService : IAsyncDisposable
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error in OnGameStateChange callback: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// JavaScript callback for danger countdown started
+    /// </summary>
+    [JSInvokable]
+    public void OnDangerCountdownStarted()
+    {
+        try
+        {
+            Console.WriteLine("Danger countdown started!");
+            DangerCountdownStarted?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnDangerCountdownStarted callback: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// JavaScript callback for danger countdown updates
+    /// </summary>
+    [JSInvokable]
+    public void OnDangerCountdownUpdate(double remainingSeconds)
+    {
+        try
+        {
+            DangerCountdownUpdate?.Invoke(remainingSeconds);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnDangerCountdownUpdate callback: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// JavaScript callback for danger countdown cancelled
+    /// </summary>
+    [JSInvokable]
+    public void OnDangerCountdownCancelled()
+    {
+        try
+        {
+            Console.WriteLine("Danger countdown cancelled - blocks moved below line");
+            DangerCountdownCancelled?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnDangerCountdownCancelled callback: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// JavaScript callback for danger game over
+    /// </summary>
+    [JSInvokable]
+    public void OnDangerGameOver()
+    {
+        try
+        {
+            Console.WriteLine("Danger game over - countdown expired!");
+            DangerGameOver?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error in OnDangerGameOver callback: {ex.Message}");
         }
     }
 

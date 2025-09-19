@@ -28,17 +28,6 @@ try
     // Add response caching
     builder.Services.AddResponseCaching();
 
-    // Add CORS for Blazor frontend
-    builder.Services.AddCors(options =>
-    {
-        options.AddPolicy("BlazorPolicy", policy =>
-        {
-            policy.WithOrigins("https://localhost:7000", "http://localhost:5000", "http://localhost:5173")
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
-        });
-    });
-
     // Configure Azure Table Storage
     var tableStorageConnectionString = builder.Configuration.GetConnectionString("AzureTableStorage")
         ?? "UseDevelopmentStorage=true"; // Default to Azurite for development
@@ -120,7 +109,10 @@ try
     app.UseMiddleware<RateLimitingMiddleware>();
 
     app.UseHttpsRedirection();
-    app.UseCors("BlazorPolicy");
+
+    // Configure static files for Blazor WASM
+    app.UseBlazorFrameworkFiles();
+    app.UseStaticFiles();
 
     // Add response caching middleware
     app.UseResponseCaching();
@@ -140,6 +132,9 @@ try
     app.UseRouting();
     app.MapControllers();
     app.MapHealthChecks("/health");
+    
+    // Fallback route for Blazor WASM client-side routing
+    app.MapFallbackToFile("index.html");
 
     Log.Information("PoDropSquare API configured successfully");
     app.Run();

@@ -13,6 +13,13 @@ let gameBlocks = [];
 let boundaries = [];
 let goalLine = null;
 let isRunning = false;
+
+// Danger countdown state
+let dangerCountdownActive = false;
+let dangerCountdownStartTime = null;
+let lastDangerCheck = 0;
+let dangerCountdownInterval = null;
+
 let performanceStats = {
     fps: 60,
     frameTime: 0,
@@ -37,6 +44,7 @@ const PHYSICS_CONFIG = {
     blockSize: 40,
     wallThickness: 20,
     targetFPS: 60,
+    dangerCountdownTime: 2000, // 2 seconds in milliseconds
     maxBlockCount: 100,
     performanceThreshold: 30 // Minimum FPS before performance warning
 };
@@ -207,6 +215,11 @@ function setupCollisionDetection() {
         const currentTime = performance.now();
         performanceStats.frameTime = currentTime - performanceStats.lastFrameTime;
         performanceStats.frameCount++;
+        
+        // Check danger countdown every few frames to avoid performance issues
+        if (performanceStats.frameCount % 30 === 0) { // Check every 30 frames (~0.5 seconds)
+            checkDangerCountdown();
+        }
         
         // Calculate FPS every 60 frames
         if (performanceStats.frameCount % 60 === 0) {
@@ -427,6 +440,90 @@ window.checkGameOver = function() {
 };
 
 /**
+ * Check for blocks above danger line and manage countdown
+ */
+function checkDangerCountdown() {
+    if (!isRunning) return;
+    
+    const now = Date.now();
+    const blocksAboveLine = gameBlocks.some(block => 
+        block.position.y <= PHYSICS_CONFIG.goalLineY
+    );
+    
+    if (blocksAboveLine) {
+        if (!dangerCountdownActive) {
+            // Start danger countdown
+            dangerCountdownActive = true;
+            dangerCountdownStartTime = now;
+            console.log('Danger countdown started!');
+            
+            // Notify Blazor about countdown start
+            if (window.PhysicsInteropService && window.PhysicsInteropService.dotNetReference) {
+                window.PhysicsInteropService.OnDangerCountdownStarted();
+            }
+            
+            // Start countdown interval to update display
+            dangerCountdownInterval = setInterval(() => {
+                const elapsed = Date.now() - dangerCountdownStartTime;
+                const elapsedSeconds = Math.min(elapsed / 1000, 2.0); // Cap at 2.0 seconds
+                const displayTime = elapsedSeconds.toFixed(1);
+                
+                // Notify Blazor about countdown progress (now counting up)
+                if (window.PhysicsInteropService && window.PhysicsInteropService.dotNetReference) {
+                    window.PhysicsInteropService.OnDangerCountdownUpdate(parseFloat(displayTime));
+                }
+                
+                if (elapsed >= PHYSICS_CONFIG.dangerCountdownTime) {
+                    // Countdown complete - trigger victory
+                    clearInterval(dangerCountdownInterval);
+                    dangerCountdownInterval = null;
+                    dangerCountdownActive = false;
+                    console.log('Victory! Block held high for 2 seconds!');
+                    
+                    if (window.PhysicsInteropService && window.PhysicsInteropService.dotNetReference) {
+                        window.PhysicsInteropService.OnVictoryAchieved();
+                    }
+                }
+            }, 100); // Update every 100ms for smooth countdown
+        }
+    } else {
+        if (dangerCountdownActive) {
+            // All blocks are below line - cancel countdown
+            dangerCountdownActive = false;
+            dangerCountdownStartTime = null;
+            if (dangerCountdownInterval) {
+                clearInterval(dangerCountdownInterval);
+                dangerCountdownInterval = null;
+            }
+            console.log('Danger countdown cancelled - blocks below line');
+            
+            // Notify Blazor about countdown cancellation
+            if (window.PhysicsInteropService && window.PhysicsInteropService.dotNetReference) {
+                window.PhysicsInteropService.OnDangerCountdownCancelled();
+            }
+        }
+    }
+}
+
+/**
+ * Get current danger countdown status
+ * @returns {object} Countdown status
+ */
+window.getDangerCountdownStatus = function() {
+    if (!dangerCountdownActive) {
+        return { active: false, elapsed: 0 };
+    }
+    
+    const elapsed = Date.now() - dangerCountdownStartTime;
+    const elapsedSeconds = Math.min(elapsed / 1000, 2.0); // Cap at 2.0 seconds
+    return {
+        active: true,
+        elapsed: elapsedSeconds,
+        startTime: dangerCountdownStartTime
+    };
+};
+
+/**
  * Clear all blocks from the world
  */
 window.clearAllBlocks = function() {
@@ -622,6 +719,36 @@ window.PhysicsInteropService = {
         if (this.dotNetReference) {
             this.dotNetReference.invokeMethodAsync('OnGameStateChange', state, data);
         }
+    },
+    
+    OnDangerCountdownStarted: function() {
+        if (this.dotNetReference) {
+            this.dotNetReference.invokeMethodAsync('OnDangerCountdownStarted');
+        }
+    },
+    
+    OnDangerCountdownUpdate: function(remainingSeconds) {
+        if (this.dotNetReference) {
+            this.dotNetReference.invokeMethodAsync('OnDangerCountdownUpdate', remainingSeconds);
+        }
+    },
+    
+    OnDangerCountdownCancelled: function() {
+        if (this.dotNetReference) {
+            this.dotNetReference.invokeMethodAsync('OnDangerCountdownCancelled');
+        }
+    },
+    
+    OnDangerGameOver: function() {
+        if (this.dotNetReference) {
+            this.dotNetReference.invokeMethodAsync('OnDangerGameOver');
+        }
+    },
+    
+    OnVictoryAchieved: function() {
+        if (this.dotNetReference) {
+            this.dotNetReference.invokeMethodAsync('OnVictoryAchieved');
+        }
     }
 };
 
@@ -630,6 +757,14 @@ window.resetGame = function() {
     console.log('Resetting game...');
     clearAllBlocks();
     isRunning = false;
+    
+    // Reset danger countdown state
+    dangerCountdownActive = false;
+    dangerCountdownStartTime = null;
+    if (dangerCountdownInterval) {
+        clearInterval(dangerCountdownInterval);
+        dangerCountdownInterval = null;
+    }
 };
 
 window.startGame = function() {
@@ -662,6 +797,14 @@ window.stopGame = function() {
     if (runner) {
         Matter.Runner.stop(runner);
     }
+    
+    // Stop danger countdown
+    dangerCountdownActive = false;
+    dangerCountdownStartTime = null;
+    if (dangerCountdownInterval) {
+        clearInterval(dangerCountdownInterval);
+        dangerCountdownInterval = null;
+    }
 };
 
 // Game input functions
@@ -682,8 +825,15 @@ window.dropBlockFast = function() {
 
 window.dropBlockAtPosition = function(x, y) {
     console.log(`Drop block at position: (${x}, ${y})`);
-    // Create a new block at the specified position
-    createBlock(x, y, '#ff6b6b');
+    // Create a standardized square block at the specified position
+    // Use consistent size and color for simplicity
+    createBlock(x, y, '#ffffff', {
+        width: PHYSICS_CONFIG.blockSize,
+        height: PHYSICS_CONFIG.blockSize,
+        restitution: 0.3,
+        friction: 0.8,
+        density: 0.002
+    });
 };
 
 window.cleanup = function() {

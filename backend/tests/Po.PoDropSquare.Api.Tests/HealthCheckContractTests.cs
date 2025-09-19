@@ -275,7 +275,7 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
-    public void Dispose()
+    public void CleanupResources()
     {
         Dispose(true);
         GC.SuppressFinalize(this);
