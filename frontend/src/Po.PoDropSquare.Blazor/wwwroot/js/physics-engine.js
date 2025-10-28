@@ -291,21 +291,6 @@ function createGoalLine() {
     
     Matter.World.add(world, goalLine);
 }
-function createGoalLine() {
-    goalLine = Matter.Bodies.rectangle(
-        PHYSICS_CONFIG.worldWidth / 2,
-        PHYSICS_CONFIG.goalLineY,
-        PHYSICS_CONFIG.worldWidth - (PHYSICS_CONFIG.wallThickness * 2),
-        2,
-        { 
-            isStatic: true, 
-            isSensor: true,
-            render: { fillStyle: '#ff4757' }
-        }
-    );
-    
-    Matter.World.add(world, goalLine);
-}
 
 /**
  * Create a new block at specified position with enhanced physics properties
@@ -447,23 +432,33 @@ function checkDangerCountdown() {
     
     const now = Date.now();
     
-    // Debug: Log block positions
-    const blockPositions = gameBlocks.map(b => ({
-        id: b.blockId,
-        y: Math.round(b.position.y),
-        aboveLine: b.position.y <= PHYSICS_CONFIG.goalLineY
-    }));
+    // Check if any block's TOP edge is at or above the goal line
+    // Block position.y is the CENTER, so we subtract half the block size
+    const halfBlockSize = PHYSICS_CONFIG.blockSize / 2;
     
-    const blocksAboveLine = gameBlocks.some(block => 
-        block.position.y <= PHYSICS_CONFIG.goalLineY
-    );
+    // Debug: Log block positions
+    const blockPositions = gameBlocks.map(b => {
+        const topY = b.position.y - halfBlockSize;
+        return {
+            id: b.blockId,
+            centerY: Math.round(b.position.y),
+            topY: Math.round(topY),
+            aboveLine: topY <= PHYSICS_CONFIG.goalLineY
+        };
+    });
+    
+    const blocksAboveLine = gameBlocks.some(block => {
+        const blockTopY = block.position.y - halfBlockSize;
+        return blockTopY <= PHYSICS_CONFIG.goalLineY;
+    });
     
     // Debug logging
-    if (gameBlocks.length > 0) {
+    if (gameBlocks.length > 0 && gameBlocks.length % 30 === 0) { // Log periodically
         console.log('Danger check - Blocks:', blockPositions.length, 
                     'Above line:', blockPositions.filter(b => b.aboveLine).length,
                     'Goal line Y:', PHYSICS_CONFIG.goalLineY,
-                    'Countdown active:', dangerCountdownActive);
+                    'Countdown active:', dangerCountdownActive,
+                    'Sample block:', blockPositions[0]);
     }
     
     if (blocksAboveLine) {
