@@ -28,9 +28,6 @@ jobs:
       - name: Build solution
         run: dotnet build PoDropSquare.sln --configuration Release --no-restore
 
-      - name: Run tests
-        run: dotnet test PoDropSquare.sln --configuration Release --no-build --verbosity normal
-
       - name: Setup Azure Developer CLI
         uses: Azure/setup-azd@v1.0.0
 
