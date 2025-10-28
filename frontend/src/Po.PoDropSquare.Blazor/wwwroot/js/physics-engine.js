@@ -760,8 +760,12 @@ window.PhysicsInteropService = {
     },
     
     OnVictoryAchieved: function() {
+        console.log('🔥 JavaScript OnVictoryAchieved function called');
         if (this.dotNetReference) {
+            console.log('🔥 Calling C# OnVictoryAchieved via invokeMethodAsync');
             this.dotNetReference.invokeMethodAsync('OnVictoryAchieved');
+        } else {
+            console.error('🔥 ERROR: dotNetReference is null! Cannot call C# method');
         }
     }
 };
