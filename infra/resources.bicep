@@ -6,7 +6,7 @@ param principalId string
 
 // Storage Account for Azure Table Storage
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
-  name: 'stpodropsquare${resourceToken}'
+  name: 'stpds${resourceToken}'  // Shortened: stpds = storage-podropsquare
   location: location
   tags: tags
   sku: {
@@ -47,17 +47,17 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-// Try to use existing App Service Plan from PoShared resource group
-// If it doesn't exist or fails, deployment will inform user
+// Use existing App Service Plan from PoShared resource group
+// PoShared in East US 2 - Free tier with 6 apps (can host up to 10)
 resource existingAppServicePlan 'Microsoft.Web/serverfarms@2022-09-01' existing = {
-  name: 'asp-poshared-001'
+  name: 'PoShared'
   scope: resourceGroup('PoShared')
 }
 
-// App Service
+// App Service (named after solution file)
 resource appService 'Microsoft.Web/sites@2022-09-01' = {
-  name: 'app-podropsquare-${resourceToken}'
-  location: location
+  name: 'PoDropSquare'
+  location: 'eastus2'  // Must match the existing plan's location
   tags: tags
   kind: 'app'
   properties: {
@@ -65,7 +65,7 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
     httpsOnly: true
     siteConfig: {
       netFrameworkVersion: 'v9.0'
-      alwaysOn: false  // F1 plan doesn't support always on
+      alwaysOn: false  // Free tier doesn't support always on
       http20Enabled: true
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'
@@ -98,7 +98,7 @@ resource storageRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3') // Storage Table Data Contributor
     principalId: principalId
-    principalType: 'ServicePrincipal'
+    principalType: 'User'  // Changed from ServicePrincipal since azd uses user identity
   }
 }
 

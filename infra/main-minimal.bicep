@@ -1,4 +1,4 @@
-// main.bicep - Main infrastructure deployment for PoDropSquare
+// main-minimal.bicep - Minimal infrastructure deployment (without App Service due to quota)
 targetScope = 'subscription'
 
 @minLength(1)
@@ -8,10 +8,7 @@ param environmentName string
 
 @minLength(1)
 @description('Primary location for all resources')
-param location string = 'eastus2'  // Must match PoShared App Service Plan location
-
-@description('Id of the user or app to assign application roles')
-param principalId string = ''
+param location string = 'eastus'
 
 // Tags that should be applied to all resources
 var tags = {
@@ -20,8 +17,6 @@ var tags = {
   environment: environmentName
 }
 
-// Generate a unique name for the resource group based on the subscription ID and environment name
-var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 
 // Resource group name - simple and clean
@@ -34,15 +29,14 @@ resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   tags: tags
 }
 
-// Deploy core resources
-module resources './resources.bicep' = {
+// Deploy core resources (Storage + Monitoring only, no App Service)
+module resources './resources-minimal.bicep' = {
   name: 'resources'
   scope: rg
   params: {
     location: location
     tags: tags
     resourceToken: resourceToken
-    principalId: principalId
   }
 }
 
@@ -51,6 +45,5 @@ output AZURE_LOCATION string = location
 output AZURE_RESOURCE_GROUP string = rg.name
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = resources.outputs.applicationInsightsConnectionString
 output AZURE_STORAGE_CONNECTION_STRING string = resources.outputs.storageConnectionString
-output APP_SERVICE_NAME string = resources.outputs.appServiceName
-output APP_SERVICE_URL string = resources.outputs.appServiceUrl
 output LOG_ANALYTICS_WORKSPACE_ID string = resources.outputs.logAnalyticsWorkspaceId
+output STORAGE_ACCOUNT_NAME string = resources.outputs.storageAccountName
