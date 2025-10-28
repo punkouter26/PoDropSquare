@@ -432,36 +432,28 @@ function checkDangerCountdown() {
     
     const now = Date.now();
     
-    // Check if any part of any block is at or above the goal line
-    // We need to check the actual bounding box, accounting for rotation
+    // SIMPLIFIED: Just check if any block's top edge (position.y - half block size) is at or above the goal line
     const halfBlockSize = PHYSICS_CONFIG.blockSize / 2;
     
-    // Debug: Log block positions
-    const blockPositions = gameBlocks.map(b => {
-        // Get the actual bounds of the rotated block
-        const bounds = b.bounds;
-        const minY = bounds.min.y; // Top edge of the bounding box
-        return {
-            id: b.blockId,
-            centerY: Math.round(b.position.y),
-            topY: Math.round(minY),
-            angle: Math.round(b.angle * 180 / Math.PI), // Convert to degrees
-            aboveLine: minY <= PHYSICS_CONFIG.goalLineY
-        };
-    });
-    
+    // Check each block's Y position
     const blocksAboveLine = gameBlocks.some(block => {
-        // Check if the top of the block's bounding box is at or above the goal line
-        return block.bounds.min.y <= PHYSICS_CONFIG.goalLineY;
+        const topEdgeY = block.position.y - halfBlockSize;
+        return topEdgeY <= PHYSICS_CONFIG.goalLineY;
     });
     
-    // Debug logging
-    if (gameBlocks.length > 0 && gameBlocks.length % 30 === 0) { // Log periodically
-        console.log('Danger check - Blocks:', blockPositions.length, 
-                    'Above line:', blockPositions.filter(b => b.aboveLine).length,
+    // ALWAYS log block positions for debugging
+    const blockInfo = gameBlocks.map(b => ({
+        id: b.blockId,
+        y: Math.round(b.position.y),
+        topY: Math.round(b.position.y - halfBlockSize),
+        above: (b.position.y - halfBlockSize) <= PHYSICS_CONFIG.goalLineY
+    }));
+    
+    if (gameBlocks.length > 0) {
+        console.log('🔍 Victory check - Total blocks:', gameBlocks.length, 
+                    'Above line:', blockInfo.filter(b => b.above).length,
                     'Goal line Y:', PHYSICS_CONFIG.goalLineY,
-                    'Countdown active:', dangerCountdownActive,
-                    'Sample block:', blockPositions[0]);
+                    'Highest block topY:', Math.min(...blockInfo.map(b => b.topY)));
     }
     
     if (blocksAboveLine) {

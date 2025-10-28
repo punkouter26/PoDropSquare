@@ -66,16 +66,17 @@ public class VictoryCountdownE2ETests : IAsyncLifetime
 
         Console.WriteLine("🎮 Starting to stack blocks...");
         
-        // Drop blocks rapidly to build a tower
-        for (int i = 0; i < 15; i++)
+        // Drop blocks MORE SLOWLY with longer delays to allow physics to settle
+        // This creates a more stable vertical stack
+        for (int i = 0; i < 20; i++) // Increased to 20 blocks
         {
             await _page.Mouse.ClickAsync(clickX, clickY);
-            await Task.Delay(200); // Small delay between drops
+            await Task.Delay(500); // INCREASED delay to 500ms for stability
             Console.WriteLine($"   Block {i + 1} dropped");
         }
 
         Console.WriteLine("⏳ Waiting for blocks to settle and reach red line...");
-        await Task.Delay(3000); // Wait for physics to settle
+        await Task.Delay(5000); // Longer settle time
 
         // Check if victory countdown started (look for console message)
         var countdownStarted = consoleMessages.Any(m => 
