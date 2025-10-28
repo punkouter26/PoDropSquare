@@ -28,8 +28,8 @@ jobs:
       - name: Build solution
         run: dotnet build PoDropSquare.sln --configuration Release --no-restore
 
-      - name: Setup Azure Developer CLI
-        uses: Azure/setup-azd@v1.0.0
+      - name: Publish API project
+        run: dotnet publish backend/src/Po.PoDropSquare.Api/Po.PoDropSquare.Api.csproj --configuration Release --no-build --output ./publish
 
       - name: Log in to Azure with OIDC
         uses: azure/login@v2
@@ -38,13 +38,11 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Set azd environment variables
-        run: |
-          azd env set AZURE_LOCATION eastus2
-          azd env set AZURE_SUBSCRIPTION_ID ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
       - name: Deploy to Azure App Service
-        run: azd deploy --no-prompt
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: 'PoDropSquare'
+          package: './publish'
 
       - name: Verify deployment health check
         run: |
