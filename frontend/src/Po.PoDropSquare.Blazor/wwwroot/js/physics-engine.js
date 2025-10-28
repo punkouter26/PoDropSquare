@@ -446,9 +446,25 @@ function checkDangerCountdown() {
     if (!isRunning) return;
     
     const now = Date.now();
+    
+    // Debug: Log block positions
+    const blockPositions = gameBlocks.map(b => ({
+        id: b.blockId,
+        y: Math.round(b.position.y),
+        aboveLine: b.position.y <= PHYSICS_CONFIG.goalLineY
+    }));
+    
     const blocksAboveLine = gameBlocks.some(block => 
         block.position.y <= PHYSICS_CONFIG.goalLineY
     );
+    
+    // Debug logging
+    if (gameBlocks.length > 0) {
+        console.log('Danger check - Blocks:', blockPositions.length, 
+                    'Above line:', blockPositions.filter(b => b.aboveLine).length,
+                    'Goal line Y:', PHYSICS_CONFIG.goalLineY,
+                    'Countdown active:', dangerCountdownActive);
+    }
     
     if (blocksAboveLine) {
         if (!dangerCountdownActive) {
