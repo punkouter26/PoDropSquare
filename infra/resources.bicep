@@ -58,7 +58,9 @@ resource existingAppServicePlan 'Microsoft.Web/serverfarms@2022-09-01' existing 
 resource appService 'Microsoft.Web/sites@2022-09-01' = {
   name: 'PoDropSquare'
   location: 'eastus2'  // Must match the existing plan's location
-  tags: tags
+  tags: union(tags, {
+    'azd-service-name': 'api'
+  })
   kind: 'app'
   properties: {
     serverFarmId: existingAppServicePlan.id
