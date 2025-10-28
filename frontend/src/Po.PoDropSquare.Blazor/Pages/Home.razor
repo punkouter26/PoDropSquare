@@ -178,14 +178,17 @@
                 break;
                 
             case GameEventType.GameOver:
+                Console.WriteLine("📍 Home: GameOver event received");
                 await EndGame();
                 break;
                 
             case GameEventType.GoalReached:
+                Console.WriteLine("📍 Home: GoalReached event received");
                 await EndGameWithVictory();
                 break;
         }
         
+        Console.WriteLine($"📍 Home: After event handling, _showGameOverScreen={_showGameOverScreen}, _isVictory={_isVictory}");
         StateHasChanged();
     }
 
@@ -222,11 +225,14 @@
 
     private async Task EndGameWithVictory()
     {
+        Console.WriteLine("📍 EndGameWithVictory called");
         _finalScore = _currentScore;
         _finalGameTime = _currentGameTime;
         _gameState = GameState.GameOver;
         _showGameOverScreen = true;
         _isVictory = true;
+        
+        Console.WriteLine($"📍 EndGameWithVictory: Set _showGameOverScreen={_showGameOverScreen}, _isVictory={_isVictory}");
         
         _timerRef?.StopTimer();
         
@@ -236,6 +242,7 @@
         }
         
         await InvokeAsync(StateHasChanged);
+        Console.WriteLine("📍 EndGameWithVictory: StateHasChanged called");
     }
 
     private string FormatTime(TimeSpan time)

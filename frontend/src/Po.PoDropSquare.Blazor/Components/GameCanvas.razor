@@ -315,9 +315,15 @@
     {
         _isDangerCountdownActive = false;
         _dangerCountdownElapsed = 0;
-        Console.WriteLine("Victory! Block held high for 2 seconds!");
-        await StopGame();
-        await OnGameEvent.InvokeAsync(new GameEventArgs { EventType = GameEventType.GoalReached, Score = _currentScore });
+        Console.WriteLine("🏆 OnVictoryAchieved called in GameCanvas");
+        
+        await InvokeAsync(async () =>
+        {
+            Console.WriteLine("🏆 Stopping game and firing GoalReached event");
+            await StopGame();
+            await OnGameEvent.InvokeAsync(new GameEventArgs { EventType = GameEventType.GoalReached, Score = _currentScore });
+            StateHasChanged();
+        });
     }
 
     public async ValueTask DisposeAsync()

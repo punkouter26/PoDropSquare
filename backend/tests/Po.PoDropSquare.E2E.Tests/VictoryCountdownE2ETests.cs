@@ -167,10 +167,10 @@ public class VictoryCountdownE2ETests : IAsyncLifetime
 
         // Now drop more blocks to potentially make tower unstable
         Console.WriteLine("🎮 Dropping additional blocks to destabilize tower...");
-        var sideClickX = boundingBox.X + boundingBox.Width * 0.3; // Click to the side
+        var sideClickX = (float)(boundingBox.X + boundingBox.Width * 0.3); // Click to the side
         for (int i = 0; i < 5; i++)
         {
-            await _page.Mouse.ClickAsync(sideClickX, clickY);
+            await _page.Mouse.ClickAsync(sideClickX, (float)clickY);
             await Task.Delay(200);
         }
 
