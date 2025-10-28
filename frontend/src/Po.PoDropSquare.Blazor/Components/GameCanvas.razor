@@ -320,7 +320,15 @@
         await InvokeAsync(async () =>
         {
             Console.WriteLine("🏆 Stopping game and firing GoalReached event");
-            await StopGame();
+            
+            // Stop the game WITHOUT firing the GameOver event (we're handling victory separately)
+            GameState = GameState.GameOver;
+            if (_physicsInitialized)
+            {
+                await JSRuntime.InvokeVoidAsync("stopGame");
+            }
+            
+            // Fire the GoalReached event (NOT GameOver)
             await OnGameEvent.InvokeAsync(new GameEventArgs { EventType = GameEventType.GoalReached, Score = _currentScore });
             StateHasChanged();
         });

@@ -236,10 +236,8 @@
         
         _timerRef?.StopTimer();
         
-        if (_gameCanvasRef != null)
-        {
-            await _gameCanvasRef.StopGame();
-        }
+        // Don't call StopGame() here - it's already stopped in OnVictoryAchieved
+        // and calling it again would fire a GameOver event that resets _isVictory
         
         await InvokeAsync(StateHasChanged);
         Console.WriteLine("📍 EndGameWithVictory: StateHasChanged called");
