@@ -46,13 +46,13 @@ public class LogController : ControllerBase
             {
                 ["ClientTimestamp"] = clientLogEntry.Timestamp,
                 ["UserAgent"] = Request.Headers.UserAgent.ToString(),
-                ["RemoteIP"] = HttpContext.Connection.RemoteIpAddress?.ToString(),
-                ["Url"] = clientLogEntry.Url,
+                ["RemoteIP"] = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown",
+                ["Url"] = clientLogEntry.Url ?? string.Empty,
                 ["Source"] = "Client"
             }))
             {
-                _clientLogger.Log(logLevel, "[CLIENT] {Message} {Data}", 
-                    clientLogEntry.Message, 
+                _clientLogger.Log(logLevel, "[CLIENT] {Message} {Data}",
+                    clientLogEntry.Message,
                     clientLogEntry.Data ?? "");
             }
 
@@ -90,19 +90,19 @@ public class LogController : ControllerBase
             {
                 ["ClientTimestamp"] = errorEntry.Timestamp,
                 ["UserAgent"] = Request.Headers.UserAgent.ToString(),
-                ["RemoteIP"] = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                ["RemoteIP"] = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown",
                 ["ErrorType"] = "JavaScriptError",
                 ["Source"] = "Client",
-                ["Filename"] = errorEntry.Filename ?? "",
+                ["Filename"] = errorEntry.Filename ?? string.Empty,
                 ["LineNumber"] = errorEntry.LineNumber,
                 ["ColumnNumber"] = errorEntry.ColumnNumber,
-                ["Stack"] = errorEntry.Stack ?? ""
+                ["Stack"] = errorEntry.Stack ?? string.Empty
             }))
             {
-                _clientLogger.LogError("[CLIENT ERROR] {Message} at {Filename}:{LineNumber}:{ColumnNumber}", 
-                    errorEntry.Message, 
-                    errorEntry.Filename, 
-                    errorEntry.LineNumber, 
+                _clientLogger.LogError("[CLIENT ERROR] {Message} at {Filename}:{LineNumber}:{ColumnNumber}",
+                    errorEntry.Message,
+                    errorEntry.Filename,
+                    errorEntry.LineNumber,
                     errorEntry.ColumnNumber);
             }
 
@@ -140,19 +140,19 @@ public class LogController : ControllerBase
             Directory.CreateDirectory(logDirectory);
 
             var logFile = Path.Combine(logDirectory, "client_log.txt");
-            
+
             var logLine = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.fff} UTC] [{entry.Level.ToUpperInvariant()}] [CLIENT] {entry.Message}";
-            
+
             if (!string.IsNullOrEmpty(entry.Data))
             {
                 logLine += $" | Data: {entry.Data}";
             }
-            
+
             if (!string.IsNullOrEmpty(entry.Url))
             {
                 logLine += $" | URL: {entry.Url}";
             }
-            
+
             logLine += Environment.NewLine;
 
             await System.IO.File.AppendAllTextAsync(logFile, logLine);
@@ -171,19 +171,19 @@ public class LogController : ControllerBase
             Directory.CreateDirectory(logDirectory);
 
             var logFile = Path.Combine(logDirectory, "client_log.txt");
-            
+
             var logLine = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.fff} UTC] [ERROR] [CLIENT] JavaScript Error: {entry.Message}";
-            
+
             if (!string.IsNullOrEmpty(entry.Filename))
             {
                 logLine += $" | File: {entry.Filename}:{entry.LineNumber}:{entry.ColumnNumber}";
             }
-            
+
             if (!string.IsNullOrEmpty(entry.Stack))
             {
                 logLine += $" | Stack: {entry.Stack}";
             }
-            
+
             logLine += Environment.NewLine;
 
             await System.IO.File.AppendAllTextAsync(logFile, logLine);

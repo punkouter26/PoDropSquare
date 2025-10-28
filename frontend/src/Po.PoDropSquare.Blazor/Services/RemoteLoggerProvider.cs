@@ -60,7 +60,7 @@ public class RemoteLogger : ILogger
         try
         {
             var message = formatter(state, exception);
-            
+
             if (exception != null)
             {
                 message += $" Exception: {exception}";

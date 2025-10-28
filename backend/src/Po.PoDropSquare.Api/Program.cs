@@ -5,6 +5,55 @@ using Po.PoDropSquare.Services.Services;
 using Po.PoDropSquare.Api.HealthChecks;
 using Po.PoDropSquare.Api.Middleware;
 
+/*
+ * ┌─────────────────────────────────────────────────────────────────────────────┐
+ * │ APPLICATION INSIGHTS KQL QUERIES                                            │
+ * │ For detailed monitoring queries, see: /docs/KQL-QUERIES.md                 │
+ * └─────────────────────────────────────────────────────────────────────────────┘
+ * 
+ * Quick Reference - Run these in Application Insights → Logs:
+ * 
+ * 1. TOP 10 SLOWEST API REQUESTS (Last 24h)
+ *    requests
+ *    | where timestamp > ago(24h)
+ *    | summarize P95Duration = percentile(duration, 95), Count = count() by name
+ *    | order by P95Duration desc | take 10
+ * 
+ * 2. ERROR RATE BY HOUR
+ *    requests
+ *    | where timestamp > ago(24h)
+ *    | summarize Total = count(), Failed = countif(success == false) by bin(timestamp, 1h)
+ *    | extend ErrorRate = (Failed * 100.0) / Total
+ *    | render timechart
+ * 
+ * 3. ACTIVE USERS
+ *    requests
+ *    | where timestamp > ago(24h)
+ *    | summarize ActiveUsers = dcount(user_Id) by bin(timestamp, 1h)
+ *    | render timechart
+ * 
+ * 4. JAVASCRIPT ERRORS (Client-side)
+ *    traces
+ *    | where timestamp > ago(24h)
+ *    | where customDimensions.CategoryName contains "ClientError"
+ *    | project timestamp, message, severityLevel
+ *    | order by timestamp desc | take 100
+ * 
+ * 5. HEALTH CHECK MONITORING
+ *    requests
+ *    | where timestamp > ago(24h) and name contains "health"
+ *    | summarize Failures = countif(success == false) by bin(timestamp, 5m)
+ *    | render timechart
+ * 
+ * See /docs/KQL-QUERIES.md for 31 comprehensive queries covering:
+ * - User Activity & Engagement (DAU, sessions, geographic)
+ * - Performance Monitoring (latency, dependencies, client-side)
+ * - Error Tracking (exceptions, failed requests, JS errors)
+ * - Game Metrics (scores, leaderboard, player ranks)
+ * - Business Intelligence (retention, conversion funnel)
+ * - Alerts (error rate, slow performance, dependency failures)
+ */
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Serilog from configuration
@@ -123,8 +172,10 @@ try
         options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000}ms";
         options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
         {
-            diagnosticContext.Set("RequestHost", httpContext.Request.Host.Value);
-            diagnosticContext.Set("UserAgent", httpContext.Request.Headers.UserAgent.FirstOrDefault() ?? "Unknown");
+            var requestHost = httpContext.Request.Host.Value ?? "Unknown";
+            diagnosticContext.Set("RequestHost", requestHost);
+            var userAgent = httpContext.Request.Headers.UserAgent.FirstOrDefault() ?? "Unknown";
+            diagnosticContext.Set("UserAgent", userAgent);
             diagnosticContext.Set("RemoteIP", httpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown");
         };
     });
@@ -132,7 +183,7 @@ try
     app.UseRouting();
     app.MapControllers();
     app.MapHealthChecks("/health");
-    
+
     // Fallback route for Blazor WASM client-side routing
     app.MapFallbackToFile("index.html");
 

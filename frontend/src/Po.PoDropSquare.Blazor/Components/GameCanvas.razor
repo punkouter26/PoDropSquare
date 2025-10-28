@@ -59,8 +59,8 @@
 
 @code {
     [Parameter] public string CanvasId { get; set; } = "gameCanvas";
-    [Parameter] public int CanvasWidth { get; set; } = 800;
-    [Parameter] public int CanvasHeight { get; set; } = 600;
+    [Parameter] public int CanvasWidth { get; set; } = 300;
+    [Parameter] public int CanvasHeight { get; set; } = 200;
     [Parameter] public EventCallback<GameEventArgs> OnGameEvent { get; set; }
     [Parameter] public EventCallback<ScoreChangedArgs> OnScoreChanged { get; set; }
     [Parameter] public EventCallback<GameState> OnGameStateChanged { get; set; }

@@ -1,0 +1,16 @@
+# azure.yaml - Azure Developer CLI configuration
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: PoDropSquare
+metadata:
+  template: PoDropSquare@0.0.1
+
+services:
+  api:
+    project: ./backend/src/Po.PoDropSquare.Api
+    language: dotnet
+    host: appservice
+    
+infra:
+  provider: bicep
+  path: infra

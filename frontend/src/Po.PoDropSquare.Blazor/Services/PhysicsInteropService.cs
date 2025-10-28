@@ -20,7 +20,7 @@ public class PhysicsInteropService : IAsyncDisposable
     public event Action<string, string>? BlockCollision;
     public event Action<ScoreUpdateEventArgs>? ScoreUpdate;
     public event Action<GameStateChangeEventArgs>? GameStateChange;
-    
+
     // Danger countdown events
     public event Action? DangerCountdownStarted;
     public event Action<double>? DangerCountdownUpdate;

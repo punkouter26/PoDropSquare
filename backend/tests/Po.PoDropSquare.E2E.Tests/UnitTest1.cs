@@ -20,8 +20,8 @@ public class PoDropSquareE2ETests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await _page?.CloseAsync();
-        await _browser?.CloseAsync();
+        if (_page != null) await _page.CloseAsync();
+        if (_browser != null) await _browser.CloseAsync();
         _playwright?.Dispose();
     }
 

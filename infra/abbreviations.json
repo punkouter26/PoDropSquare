@@ -1,0 +1,9 @@
+{
+  "resourceGroup": "rg",
+  "storageAccount": "st",
+  "appServicePlan": "asp",
+  "appService": "app",
+  "applicationInsights": "appi",
+  "logAnalyticsWorkspace": "log",
+  "keyVault": "kv"
+}

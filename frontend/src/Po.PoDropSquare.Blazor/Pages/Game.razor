@@ -35,8 +35,8 @@
         <div class="game-canvas-container">
             <GameCanvas 
                 CanvasId="mainGameCanvas"
-                CanvasWidth="600"
-                CanvasHeight="400"
+                CanvasWidth="300"
+                CanvasHeight="200"
                 OnGameEvent="OnGameEvent"
                 OnScoreChanged="OnScoreChanged"
                 OnGameStateChanged="OnGameStateChanged"
@@ -74,26 +74,12 @@
             }
         </div>
     </div>
-
-    <!-- High Scores Section -->
-    <div class="scores-section">
-        <h2>High Scores</h2>
-        <div class="scores-list">
-            <LeaderboardDisplay 
-                Title=""
-                MaxEntries="5"
-                IsCompact="true"
-                ShowRefreshButton="false"
-                @ref="_leaderboardRef" />
-        </div>
-    </div>
 </div>
 
 @code {
     // Component references
     private GameCanvas? _gameCanvasRef;
     private TimerDisplay? _timerRef;
-    private LeaderboardDisplay? _leaderboardRef;
 
     // Game state - Simplified
     private GameState _gameState = GameState.NotStarted;

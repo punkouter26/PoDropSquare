@@ -37,12 +37,12 @@ let gameCallbacks = {
 
 // Physics constants
 const PHYSICS_CONFIG = {
-    worldWidth: 800,
-    worldHeight: 600,
-    goalLineY: 100,
+    worldWidth: 300,
+    worldHeight: 200,
+    goalLineY: 40,  // Proportionally adjusted (was 100 for 600px height, now 40 for 200px)
     gravity: { x: 0, y: 0.8 },
-    blockSize: 40,
-    wallThickness: 20,
+    blockSize: 20,  // Reduced from 40 to fit smaller canvas
+    wallThickness: 10,  // Reduced from 20 to fit smaller canvas
     targetFPS: 60,
     dangerCountdownTime: 2000, // 2 seconds in milliseconds
     maxBlockCount: 100,

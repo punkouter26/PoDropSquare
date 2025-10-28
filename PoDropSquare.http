@@ -1,0 +1,278 @@
+### PoDropSquare API Testing
+### Use this file with the REST Client extension in VS Code
+### or any HTTP client that supports .http files
+
+@baseUrl = http://localhost:5000
+@httpsUrl = https://localhost:5001
+
+###############################################
+# Health Check Endpoints
+###############################################
+
+### Get full health status
+GET {{baseUrl}}/api/health
+Accept: application/json
+
+### Get simplified health status (for load balancers)
+GET {{baseUrl}}/api/health/simple
+
+### Check health with HEAD request (no body)
+HEAD {{baseUrl}}/api/health
+
+### Alternative health endpoint
+GET {{baseUrl}}/health
+Accept: application/json
+
+###############################################
+# Score Submission
+###############################################
+
+### Submit a valid score
+POST {{baseUrl}}/api/scores
+Content-Type: application/json
+
+{
+  "playerInitials": "ABC",
+  "survivalTime": 15.75,
+  "sessionSignature": "sha256_hash_example_12345",
+  "clientTimestamp": "{{$datetime iso8601}}"
+}
+
+### Submit a high score
+POST {{baseUrl}}/api/scores
+Content-Type: application/json
+
+{
+  "playerInitials": "PRO",
+  "survivalTime": 19.99,
+  "sessionSignature": "sha256_hash_highscore_67890",
+  "clientTimestamp": "{{$datetime iso8601}}"
+}
+
+### Submit score with minimum survival time
+POST {{baseUrl}}/api/scores
+Content-Type: application/json
+
+{
+  "playerInitials": "MIN",
+  "survivalTime": 0.1,
+  "sessionSignature": "sha256_hash_minimum_11111",
+  "clientTimestamp": "{{$datetime iso8601}}"
+}
+
+### Test validation - Invalid player initials (should fail)
+POST {{baseUrl}}/api/scores
+Content-Type: application/json
+
+{
+  "playerInitials": "TOOLONG",
+  "survivalTime": 10.5,
+  "sessionSignature": "sha256_hash_invalid_22222",
+  "clientTimestamp": "{{$datetime iso8601}}"
+}
+
+### Test validation - Invalid survival time (should fail)
+POST {{baseUrl}}/api/scores
+Content-Type: application/json
+
+{
+  "playerInitials": "TST",
+  "survivalTime": -5.0,
+  "sessionSignature": "sha256_hash_invalid_33333",
+  "clientTimestamp": "{{$datetime iso8601}}"
+}
+
+### Test validation - Missing session signature (should fail)
+POST {{baseUrl}}/api/scores
+Content-Type: application/json
+
+{
+  "playerInitials": "TST",
+  "survivalTime": 12.5,
+  "clientTimestamp": "{{$datetime iso8601}}"
+}
+
+###############################################
+# Leaderboard Endpoints
+###############################################
+
+### Get top 10 leaderboard
+GET {{baseUrl}}/api/scores/top10
+Accept: application/json
+
+### Alternative leaderboard endpoint (backward compatibility)
+GET {{baseUrl}}/api/scores/leaderboard
+Accept: application/json
+
+### Leaderboard with cache validation
+GET {{baseUrl}}/api/scores/top10
+Accept: application/json
+If-None-Match: "previous-etag-value"
+
+###############################################
+# Player Rank Lookup
+###############################################
+
+### Get player rank for "ABC"
+GET {{baseUrl}}/api/scores/player/ABC/rank
+Accept: application/json
+
+### Get player rank for "PRO"
+GET {{baseUrl}}/api/scores/player/PRO/rank
+Accept: application/json
+
+### Test invalid player initials (should fail)
+GET {{baseUrl}}/api/scores/player/INVALID/rank
+Accept: application/json
+
+###############################################
+# Client Logging Endpoints
+###############################################
+
+### Send client log - Information level
+POST {{baseUrl}}/api/log/client
+Content-Type: application/json
+
+{
+  "level": "information",
+  "message": "User started game session",
+  "timestamp": "{{$datetime iso8601}}",
+  "url": "http://localhost:5173/game",
+  "data": "{ \"sessionId\": \"test-session-123\" }"
+}
+
+### Send client log - Warning level
+POST {{baseUrl}}/api/log/client
+Content-Type: application/json
+
+{
+  "level": "warning",
+  "message": "Physics engine performance degraded",
+  "timestamp": "{{$datetime iso8601}}",
+  "url": "http://localhost:5173/game",
+  "data": "{ \"fps\": 45, \"targetFps\": 60 }"
+}
+
+### Send client log - Error level
+POST {{baseUrl}}/api/log/client
+Content-Type: application/json
+
+{
+  "level": "error",
+  "message": "Failed to load game assets",
+  "timestamp": "{{$datetime iso8601}}",
+  "url": "http://localhost:5173/game",
+  "data": "{ \"asset\": \"blocks.png\", \"error\": \"404 Not Found\" }"
+}
+
+### Send JavaScript error
+POST {{baseUrl}}/api/log/error
+Content-Type: application/json
+
+{
+  "message": "Uncaught TypeError: Cannot read property 'x' of null",
+  "filename": "physics-engine.js",
+  "lineNumber": 142,
+  "columnNumber": 25,
+  "stack": "TypeError: Cannot read property 'x' of null\n    at updatePosition (physics-engine.js:142:25)\n    at gameLoop (game.js:89:15)",
+  "timestamp": "{{$datetime iso8601}}",
+  "url": "http://localhost:5173/game"
+}
+
+### Send unhandled promise rejection error
+POST {{baseUrl}}/api/log/error
+Content-Type: application/json
+
+{
+  "message": "Unhandled promise rejection: Network request failed",
+  "filename": "",
+  "lineNumber": 0,
+  "columnNumber": 0,
+  "stack": "Error: Network request failed\n    at fetch (native)",
+  "timestamp": "{{$datetime iso8601}}",
+  "url": "http://localhost:5173/game"
+}
+
+###############################################
+# Testing Against Production (HTTPS)
+###############################################
+
+### Health check via HTTPS
+GET {{httpsUrl}}/api/health
+Accept: application/json
+
+### Get leaderboard via HTTPS
+GET {{httpsUrl}}/api/scores/top10
+Accept: application/json
+
+###############################################
+# Performance Testing
+###############################################
+
+### Quick health check (measure response time)
+GET {{baseUrl}}/api/health/simple
+
+### Leaderboard performance check
+GET {{baseUrl}}/api/scores/top10
+Accept: application/json
+
+###############################################
+# CORS & Options Testing
+###############################################
+
+### OPTIONS request for CORS preflight
+OPTIONS {{baseUrl}}/api/scores
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: Content-Type
+Origin: http://localhost:5173
+
+### OPTIONS request for health endpoint
+OPTIONS {{baseUrl}}/health
+Access-Control-Request-Method: GET
+Origin: http://localhost:5173
+
+###############################################
+# Error Handling Tests
+###############################################
+
+### Test 404 - Non-existent endpoint
+GET {{baseUrl}}/api/nonexistent
+
+### Test 415 - Unsupported Media Type
+POST {{baseUrl}}/api/scores
+Content-Type: text/plain
+
+This is plain text, not JSON
+
+### Test malformed JSON
+POST {{baseUrl}}/api/scores
+Content-Type: application/json
+
+{ "this is": "malformed JSON" because it's incomplete
+
+###############################################
+# Batch Testing (Run sequentially)
+###############################################
+
+### 1. Check health
+GET {{baseUrl}}/api/health
+
+### 2. Get current leaderboard
+GET {{baseUrl}}/api/scores/top10
+
+### 3. Submit a new score
+POST {{baseUrl}}/api/scores
+Content-Type: application/json
+
+{
+  "playerInitials": "TST",
+  "survivalTime": 16.5,
+  "sessionSignature": "sha256_batch_test_99999",
+  "clientTimestamp": "{{$datetime iso8601}}"
+}
+
+### 4. Get updated leaderboard
+GET {{baseUrl}}/api/scores/top10
+
+### 5. Check player rank
+GET {{baseUrl}}/api/scores/player/TST/rank
