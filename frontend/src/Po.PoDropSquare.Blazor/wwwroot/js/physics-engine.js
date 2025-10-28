@@ -432,24 +432,27 @@ function checkDangerCountdown() {
     
     const now = Date.now();
     
-    // Check if any block's TOP edge is at or above the goal line
-    // Block position.y is the CENTER, so we subtract half the block size
+    // Check if any part of any block is at or above the goal line
+    // We need to check the actual bounding box, accounting for rotation
     const halfBlockSize = PHYSICS_CONFIG.blockSize / 2;
     
     // Debug: Log block positions
     const blockPositions = gameBlocks.map(b => {
-        const topY = b.position.y - halfBlockSize;
+        // Get the actual bounds of the rotated block
+        const bounds = b.bounds;
+        const minY = bounds.min.y; // Top edge of the bounding box
         return {
             id: b.blockId,
             centerY: Math.round(b.position.y),
-            topY: Math.round(topY),
-            aboveLine: topY <= PHYSICS_CONFIG.goalLineY
+            topY: Math.round(minY),
+            angle: Math.round(b.angle * 180 / Math.PI), // Convert to degrees
+            aboveLine: minY <= PHYSICS_CONFIG.goalLineY
         };
     });
     
     const blocksAboveLine = gameBlocks.some(block => {
-        const blockTopY = block.position.y - halfBlockSize;
-        return blockTopY <= PHYSICS_CONFIG.goalLineY;
+        // Check if the top of the block's bounding box is at or above the goal line
+        return block.bounds.min.y <= PHYSICS_CONFIG.goalLineY;
     });
     
     // Debug logging
