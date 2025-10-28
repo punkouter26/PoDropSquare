@@ -110,18 +110,33 @@ public class VictoryCountdownE2ETests : IAsyncLifetime
         foreach (var msg in consoleMessages.Where(m => 
             m.Contains("countdown", StringComparison.OrdinalIgnoreCase) ||
             m.Contains("victory", StringComparison.OrdinalIgnoreCase) ||
-            m.Contains("above line", StringComparison.OrdinalIgnoreCase)))
+            m.Contains("above line", StringComparison.OrdinalIgnoreCase) ||
+            m.Contains("EndGameWithVictory", StringComparison.OrdinalIgnoreCase) ||
+            m.Contains("GoalReached", StringComparison.OrdinalIgnoreCase)))
         {
             Console.WriteLine($"   {msg}");
         }
 
+        // Assert - At least one of these should be true
         Assert.True(countdownStarted || victoryAchieved || hasVictoryUI,
             "Victory countdown should have started when blocks touched the red line");
 
+        // If countdown started and enough time passed, victory MUST be achieved
         if (countdownStarted)
         {
             Assert.True(victoryAchieved || hasVictoryUI,
                 "Victory should be achieved after 2-second countdown completes");
+        }
+        
+        // NEW: Check that victory screen actually shows with correct text
+        if (hasVictoryUI)
+        {
+            var pageContent = await _page.ContentAsync();
+            var hasVictoryText = pageContent.Contains("VICTORY!", StringComparison.OrdinalIgnoreCase) ||
+                                pageContent.Contains("BLOCK HELD ABOVE RED LINE", StringComparison.OrdinalIgnoreCase);
+            
+            Assert.True(hasVictoryText, "Victory screen should display victory message");
+            Console.WriteLine("✅ Victory screen is displaying with correct victory message!");
         }
 
         Console.WriteLine("\n✅ Victory countdown test completed successfully!");
