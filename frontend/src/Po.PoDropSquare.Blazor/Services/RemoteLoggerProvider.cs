@@ -11,15 +11,17 @@ namespace Po.PoDropSquare.Blazor.Services;
 public class RemoteLoggerProvider : ILoggerProvider
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly string _baseAddress;
 
-    public RemoteLoggerProvider(IServiceProvider serviceProvider)
+    public RemoteLoggerProvider(IServiceProvider serviceProvider, string baseAddress)
     {
         _serviceProvider = serviceProvider;
+        _baseAddress = baseAddress;
     }
 
     public ILogger CreateLogger(string categoryName)
     {
-        return new RemoteLogger(categoryName, _serviceProvider);
+        return new RemoteLogger(categoryName, _serviceProvider, _baseAddress);
     }
 
     public void Dispose()
@@ -35,10 +37,13 @@ public class RemoteLogger : ILogger
 {
     private readonly string _categoryName;
     private readonly IServiceProvider _serviceProvider;
+    private readonly string _baseAddress;
 
-    public RemoteLogger(string categoryName, IServiceProvider serviceProvider)
+    public RemoteLogger(string categoryName, IServiceProvider serviceProvider, string baseAddress)
     {
         _categoryName = categoryName;
+        _serviceProvider = serviceProvider;
+        _baseAddress = baseAddress;
         _serviceProvider = serviceProvider;
     }
 
@@ -90,7 +95,7 @@ public class RemoteLogger : ILogger
         {
             // Create a new HttpClient for this request to avoid scoping issues
             using var httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri("http://localhost:5000/");
+            httpClient.BaseAddress = new Uri(_baseAddress);
             var response = await httpClient.PostAsJsonAsync("/api/log/client", logEntry);
             // Don't throw on failure - logging should be fire-and-forget
         }

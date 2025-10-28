@@ -8,7 +8,8 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // Configure HttpClient with correct base address
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("http://localhost:5000/") });
+// Use the host that served the Blazor app (works for both local and production)
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
 
 // Register services
 builder.Services.AddScoped<PhysicsInteropService>();
@@ -17,8 +18,9 @@ builder.Services.AddScoped<PhysicsInteropService>();
 builder.Logging.ClearProviders();
 // builder.Logging.AddConsole(); // Keep console logging for development - removed due to dependency issues
 
-// Add remote logging provider - register as singleton but create HttpClient factory pattern
-builder.Services.AddSingleton<RemoteLoggerProvider>();
+// Add remote logging provider - pass the base address from the host environment
+builder.Services.AddSingleton<RemoteLoggerProvider>(sp => 
+    new RemoteLoggerProvider(sp, builder.HostEnvironment.BaseAddress));
 
 // Register the remote logger provider
 builder.Logging.Services.AddSingleton<ILoggerProvider>(sp => sp.GetRequiredService<RemoteLoggerProvider>());
