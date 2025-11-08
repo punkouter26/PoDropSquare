@@ -62,10 +62,6 @@
     private DateTime _gameStartTime;
     private bool _isDisposed = false;
 
-    // Victory countdown state
-    private bool _isDangerCountdownActive = false;
-    private double _dangerCountdownElapsed = 0;
-
     public GameState GameState 
     { 
         get => _gameState;
@@ -296,8 +292,6 @@
     [JSInvokable]
     public async Task OnDangerCountdownStarted()
     {
-        _isDangerCountdownActive = true;
-        _dangerCountdownElapsed = 0;
         Console.WriteLine("Danger countdown started!");
         await InvokeAsync(StateHasChanged);
     }
@@ -305,15 +299,12 @@
     [JSInvokable]
     public async Task OnDangerCountdownUpdate(double elapsedSeconds)
     {
-        _dangerCountdownElapsed = elapsedSeconds;
         await InvokeAsync(StateHasChanged);
     }
 
     [JSInvokable]
     public async Task OnDangerCountdownCancelled()
     {
-        _isDangerCountdownActive = false;
-        _dangerCountdownElapsed = 0;
         Console.WriteLine("Danger countdown cancelled!");
         await InvokeAsync(StateHasChanged);
     }
@@ -321,8 +312,6 @@
     [JSInvokable]
     public async Task OnDangerGameOver()
     {
-        _isDangerCountdownActive = false;
-        _dangerCountdownElapsed = 0;
         Console.WriteLine("Game over due to danger countdown!");
         await StopGame();
         await OnGameEvent.InvokeAsync(new GameEventArgs { EventType = GameEventType.GameOver, Score = _currentScore });
@@ -331,8 +320,6 @@
     [JSInvokable]
     public async Task OnVictoryAchieved(double survivalTimeSeconds)
     {
-        _isDangerCountdownActive = false;
-        _dangerCountdownElapsed = 0;
         Console.WriteLine($"🏆 OnVictoryAchieved called in GameCanvas with survivalTime: {survivalTimeSeconds}s");
         
         await InvokeAsync(async () =>
