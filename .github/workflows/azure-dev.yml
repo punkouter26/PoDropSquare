@@ -1,51 +1,183 @@
-name: Deploy to Azure App Service
+name: CI/CD Pipeline
 
 on:
   workflow_dispatch:
   push:
     branches:
       - master
+  pull_request:
+    branches:
+      - master
 
 permissions:
-  id-token: write
-  contents: read
+  id-token: write      # Required for OIDC authentication to Azure
+  contents: read       # Required to checkout code
+  security-events: write  # Required for CodeQL
+  actions: read        # Required for CodeQL
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  SOLUTION_PATH: 'PoDropSquare.sln'
+  API_PROJECT_PATH: 'backend/src/Po.PoDropSquare.Api/Po.PoDropSquare.Api.csproj'
+  PUBLISH_OUTPUT: './publish'
 
 jobs:
-  build-test-deploy:
+  # ============================================
+  # Job 1: Code Quality & Security
+  # ============================================
+  code-quality:
+    name: Code Quality & Security
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup .NET 9.0
+      - name: 🔧 Setup .NET ${{ env.DOTNET_VERSION }}
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Restore dependencies
-        run: dotnet restore PoDropSquare.sln
+      - name: 🔍 Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          queries: security-extended,security-and-quality
 
-      - name: Build solution
-        run: dotnet build PoDropSquare.sln --configuration Release --no-restore
+      - name: 📦 Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_PATH }}
 
-      - name: Publish API project
-        run: dotnet publish backend/src/Po.PoDropSquare.Api/Po.PoDropSquare.Api.csproj --configuration Release --no-build --output ./publish
+      - name: 🏗️ Build solution (for CodeQL analysis)
+        run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
 
-      - name: Log in to Azure with OIDC
+      - name: 🔎 Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:csharp"
+
+      - name: ✨ Verify code formatting
+        run: |
+          echo "Checking code formatting with 'dotnet format'..."
+          dotnet format ${{ env.SOLUTION_PATH }} --verify-no-changes --verbosity diagnostic
+        continue-on-error: false
+
+      - name: 📊 Verify coverage report exists
+        run: |
+          if [ -f "docs/coverage/index.html" ]; then
+            echo "✅ Coverage report found at docs/coverage/index.html"
+            echo "📈 Coverage report is committed to repository for tracking"
+          else
+            echo "⚠️ Warning: Coverage report not found at docs/coverage/index.html"
+            echo "Run: ./scripts/generate-coverage.ps1 locally to generate"
+            exit 0
+          fi
+
+  # ============================================
+  # Job 2: Build & Validate
+  # ============================================
+  build:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: 📦 Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+      - name: 🏗️ Build solution
+        run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
+
+      - name: 📋 List build artifacts
+        run: |
+          echo "Build artifacts:"
+          find backend/src/Po.PoDropSquare.Api/bin/Release -type f -name "*.dll" -o -name "*.exe"
+
+      - name: 📦 Publish API project
+        run: |
+          dotnet publish ${{ env.API_PROJECT_PATH }} \
+            --configuration Release \
+            --no-build \
+            --output ${{ env.PUBLISH_OUTPUT }}
+
+      - name: 📂 Upload publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-publish
+          path: ${{ env.PUBLISH_OUTPUT }}
+          retention-days: 7
+
+  # ============================================
+  # Job 3: Deploy to Azure (master branch only)
+  # ============================================
+  deploy:
+    name: Deploy to Azure App Service
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://podropsquare.azurewebsites.net
+    
+    steps:
+      - name: 📥 Download publish artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: api-publish
+          path: ${{ env.PUBLISH_OUTPUT }}
+
+      - name: 🔐 Log in to Azure with OIDC
         uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v2
+      - name: 🚀 Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
         with:
           app-name: 'PoDropSquare'
-          package: './publish'
+          package: ${{ env.PUBLISH_OUTPUT }}
 
-      - name: Verify deployment health check
+      - name: 🏥 Verify deployment health check
         run: |
-          echo "Verifying deployment at https://podropsquare.azurewebsites.net/api/health"
+          echo "⏳ Waiting 30 seconds for app to start..."
           sleep 30
-          curl -f https://podropsquare.azurewebsites.net/api/health || exit 1
+          
+          echo "🔍 Verifying deployment at https://podropsquare.azurewebsites.net/api/health"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://podropsquare.azurewebsites.net/api/health)
+          
+          if [ "$RESPONSE" -eq 200 ]; then
+            echo "✅ Health check passed! Status code: $RESPONSE"
+          else
+            echo "❌ Health check failed! Status code: $RESPONSE"
+            exit 1
+          fi
+
+      - name: 🧪 Verify API endpoints
+        run: |
+          echo "🔍 Testing leaderboard endpoint..."
+          curl -f https://podropsquare.azurewebsites.net/api/scores/top10 || exit 1
+          echo "✅ Leaderboard endpoint responding"
+
+      - name: 📊 Deployment summary
+        run: |
+          echo "## 🎉 Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **App Service**: PoDropSquare" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL**: https://podropsquare.azurewebsites.net" >> $GITHUB_STEP_SUMMARY
+          echo "- **Health Check**: ✅ Passed" >> $GITHUB_STEP_SUMMARY
+          echo "- **API Version**: .NET ${{ env.DOTNET_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Live Application](https://podropsquare.azurewebsites.net)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Health Check](https://podropsquare.azurewebsites.net/api/health)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Leaderboard API](https://podropsquare.azurewebsites.net/api/scores/top10)" >> $GITHUB_STEP_SUMMARY

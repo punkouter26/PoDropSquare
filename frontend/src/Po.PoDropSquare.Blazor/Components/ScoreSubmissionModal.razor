@@ -9,102 +9,61 @@
         <div class="score-modal" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h2 class="modal-title">
-                    @if (IsNewHighScore)
-                    {
-                        <span class="celebration-icon">🎉</span>
-                        <span>New High Score!</span>
-                    }
-                    else
-                    {
-                        <span class="trophy-icon">🏆</span>
-                        <span>Game Complete!</span>
-                    }
+                    <span class="trophy-icon">🏆</span>
+                    <span>TOP 10 SCORE!</span>
                 </h2>
-                
-                @if (AllowClose)
-                {
-                    <button class="close-btn" @onclick="CloseModal" aria-label="Close">×</button>
-                }
             </div>
 
             <div class="modal-content">
                 <div class="score-display">
-                    <div class="final-score">
-                        <span class="score-label">Your Score</span>
-                        <span class="score-value">@Score.ToString("N0")</span>
+                    <div class="final-time">
+                        <span class="time-label">YOUR TIME</span>
+                        <span class="time-value">@SurvivalTime.ToString("0.00") s</span>
                     </div>
                     
-                    @if (GameDuration.HasValue)
-                    {
-                        <div class="game-stats">
-                            <div class="stat-item">
-                                <span class="stat-icon">⏱️</span>
-                                <span class="stat-label">Time</span>
-                                <span class="stat-value">@FormatDuration(GameDuration.Value)</span>
-                            </div>
-                            
-                            @if (Rank.HasValue)
-                            {
-                                <div class="stat-item">
-                                    <span class="stat-icon">📊</span>
-                                    <span class="stat-label">Rank</span>
-                                    <span class="stat-value">#@Rank</span>
-                                </div>
-                            }
-                        </div>
-                    }
+                    <div class="arcade-message">
+                        ENTER YOUR INITIALS
+                    </div>
                 </div>
 
                 @if (!IsSubmitted)
                 {
-                    <div class="submission-form">
-                        <h3>Save Your Score</h3>
-                        
-                        <div class="input-group">
-                            <label for="playerName">Enter Your Name:</label>
+                    <div class="submission-form arcade-style">
+                        <div class="initials-input-group">
                             <input 
-                                id="playerName"
+                                id="playerInitials"
                                 type="text" 
-                                @bind="playerName" 
+                                @bind="playerInitials" 
+                                @bind:event="oninput"
                                 @onkeypress="HandleKeyPress"
-                                placeholder="Your name here..."
-                                maxlength="50"
+                                placeholder="___"
+                                maxlength="3"
                                 disabled="@IsSubmitting"
-                                class="player-name-input @(HasValidationError ? "error" : "")"
-                                autocomplete="off" />
-                            
-                            @if (HasValidationError)
-                            {
-                                <span class="validation-error">@ValidationMessage</span>
-                            }
+                                class="arcade-initials-input @(HasValidationError ? "error" : "")"
+                                autocomplete="off"
+                                spellcheck="false" />
                         </div>
 
-                        <div class="character-counter">
-                            @playerName.Length / 50 characters
-                        </div>
+                        @if (HasValidationError)
+                        {
+                            <div class="validation-error arcade-error">@ValidationMessage</div>
+                        }
 
-                        <div class="form-actions">
+                        <div class="form-actions arcade-buttons">
                             <button 
-                                class="submit-btn primary" 
+                                class="arcade-btn submit-btn" 
                                 @onclick="SubmitScore" 
-                                disabled="@(IsSubmitting || string.IsNullOrWhiteSpace(playerName))">
+                                disabled="@(IsSubmitting || playerInitials.Length < 1)">
                                 @if (IsSubmitting)
                                 {
                                     <span class="spinner"></span>
-                                    <span>Submitting...</span>
+                                    <span>SAVING...</span>
                                 }
                                 else
                                 {
-                                    <span>💾 Save Score</span>
+                                    <span>SAVE SCORE</span>
                                 }
                             </button>
-                            
-                            @if (AllowSkip)
-                            {
-                                <button class="skip-btn secondary" @onclick="SkipSubmission" disabled="@IsSubmitting">
-                                    Skip
-                                </button>
-                            }
                         </div>
                     </div>
                 }
@@ -113,15 +72,15 @@
                     <div class="submission-result">
                         @if (SubmissionSuccess)
                         {
-                            <div class="success-message">
+                            <div class="success-message arcade-message">
                                 <span class="success-icon">✅</span>
-                                <h3>Score Saved Successfully!</h3>
+                                <h3>SCORE SAVED!</h3>
                                 <p>@SubmissionMessage</p>
                                 
                                 @if (Rank.HasValue)
                                 {
-                                    <div class="rank-display">
-                                        <span class="rank-text">Your Rank: </span>
+                                    <div class="rank-display arcade-rank">
+                                        <span class="rank-text">RANK: </span>
                                         <span class="rank-value">#@Rank</span>
                                     </div>
                                 }
@@ -129,13 +88,13 @@
                         }
                         else
                         {
-                            <div class="error-message">
+                            <div class="error-message arcade-message">
                                 <span class="error-icon">❌</span>
-                                <h3>Submission Failed</h3>
+                                <h3>ERROR</h3>
                                 <p>@SubmissionMessage</p>
                                 
-                                <button class="retry-btn" @onclick="RetrySubmission">
-                                    🔄 Try Again
+                                <button class="arcade-btn retry-btn" @onclick="RetrySubmission">
+                                    TRY AGAIN
                                 </button>
                             </div>
                         }
@@ -146,17 +105,11 @@
             <div class="modal-footer">
                 @if (IsSubmitted && SubmissionSuccess)
                 {
-                    <button class="action-btn primary" @onclick="ViewLeaderboard">
-                        🏆 View Leaderboard
+                    <button class="arcade-btn primary-btn" @onclick="ViewLeaderboard">
+                        VIEW LEADERBOARD
                     </button>
-                    <button class="action-btn secondary" @onclick="PlayAgain">
-                        🎮 Play Again
-                    </button>
-                }
-                else if (AllowClose)
-                {
-                    <button class="action-btn secondary" @onclick="CloseModal">
-                        Close
+                    <button class="arcade-btn secondary-btn" @onclick="PlayAgain">
+                        PLAY AGAIN
                     </button>
                 }
             </div>
@@ -167,6 +120,7 @@
 @code {
     [Parameter] public bool IsVisible { get; set; } = false;
     [Parameter] public int Score { get; set; }
+    [Parameter] public double SurvivalTime { get; set; }
     [Parameter] public TimeSpan? GameDuration { get; set; }
     [Parameter] public bool IsNewHighScore { get; set; } = false;
     [Parameter] public int? Rank { get; set; }
@@ -178,7 +132,7 @@
     [Parameter] public EventCallback OnPlayAgain { get; set; }
     [Parameter] public EventCallback OnViewLeaderboard { get; set; }
 
-    private string playerName = string.Empty;
+    private string playerInitials = string.Empty;
     private bool IsSubmitting = false;
     private bool IsSubmitted = false;
     private bool SubmissionSuccess = false;
@@ -188,6 +142,12 @@
 
     protected override void OnParametersSet()
     {
+        // Auto-uppercase initials
+        if (!string.IsNullOrEmpty(playerInitials))
+        {
+            playerInitials = playerInitials.ToUpper();
+        }
+
         // Reset state when modal becomes visible
         if (IsVisible && !IsSubmitted)
         {
@@ -197,7 +157,7 @@
 
     private void ResetForm()
     {
-        playerName = string.Empty;
+        playerInitials = string.Empty;
         IsSubmitting = false;
         IsSubmitted = false;
         SubmissionSuccess = false;
@@ -211,33 +171,26 @@
         HasValidationError = false;
         ValidationMessage = string.Empty;
 
-        if (string.IsNullOrWhiteSpace(playerName))
+        if (string.IsNullOrWhiteSpace(playerInitials))
         {
             HasValidationError = true;
-            ValidationMessage = "Please enter your name";
+            ValidationMessage = "ENTER YOUR INITIALS";
             return false;
         }
 
-        if (playerName.Length < 2)
+        // Must be 1-3 characters
+        if (playerInitials.Length < 1 || playerInitials.Length > 3)
         {
             HasValidationError = true;
-            ValidationMessage = "Name must be at least 2 characters";
+            ValidationMessage = "1-3 CHARACTERS ONLY";
             return false;
         }
 
-        if (playerName.Length > 50)
+        // Only allow A-Z and 0-9
+        if (!playerInitials.All(c => char.IsLetterOrDigit(c)))
         {
             HasValidationError = true;
-            ValidationMessage = "Name must be 50 characters or less";
-            return false;
-        }
-
-        // Check for inappropriate content (basic filter)
-        var inappropriate = new[] { "fuck", "shit", "damn", "admin", "test", "null", "undefined" };
-        if (inappropriate.Any(word => playerName.ToLower().Contains(word)))
-        {
-            HasValidationError = true;
-            ValidationMessage = "Please choose a different name";
+            ValidationMessage = "LETTERS & NUMBERS ONLY";
             return false;
         }
 
@@ -254,13 +207,15 @@
             IsSubmitting = true;
             StateHasChanged();
 
-            var submission = new PlayerScore
+            var submission = new
             {
-                PlayerName = playerName.Trim(),
-                Score = Score,
-                GameDuration = GameDuration ?? TimeSpan.Zero,
-                SessionId = SessionId
+                playerInitials = playerInitials.ToUpper(),
+                survivalTime = SurvivalTime,
+                sessionSignature = GenerateSessionSignature(),
+                clientTimestamp = DateTime.UtcNow.ToString("O")
             };
+
+            Console.WriteLine($"Submitting score: {playerInitials} - {SurvivalTime}s");
 
             var response = await Http.PostAsJsonAsync("/api/scores", submission);
             
@@ -273,19 +228,17 @@
                 if (result?.Success == true)
                 {
                     SubmissionSuccess = true;
-                    SubmissionMessage = result.Message ?? "Your score has been saved!";
+                    SubmissionMessage = $"TIME: {SurvivalTime:0.00}s";
                     
-                    if (result.Rank.HasValue)
+                    if (result.ScoreDetails?.Rank > 0)
                     {
-                        Rank = result.Rank.Value;
+                        Rank = result.ScoreDetails.Rank;
                     }
-
-                    await OnScoreSubmitted.InvokeAsync(submission);
                 }
                 else
                 {
                     SubmissionSuccess = false;
-                    SubmissionMessage = result?.Message ?? "Score submission failed";
+                    SubmissionMessage = result?.Message ?? "SUBMISSION FAILED";
                 }
             }
             else
@@ -293,10 +246,10 @@
                 SubmissionSuccess = false;
                 SubmissionMessage = response.StatusCode switch
                 {
-                    System.Net.HttpStatusCode.BadRequest => "Invalid score data",
-                    System.Net.HttpStatusCode.TooManyRequests => "Too many submissions. Please wait.",
-                    System.Net.HttpStatusCode.InternalServerError => "Server error. Please try again.",
-                    _ => $"Submission failed ({response.StatusCode})"
+                    System.Net.HttpStatusCode.BadRequest => "INVALID DATA",
+                    System.Net.HttpStatusCode.TooManyRequests => "TOO MANY REQUESTS",
+                    System.Net.HttpStatusCode.InternalServerError => "SERVER ERROR",
+                    _ => $"ERROR ({response.StatusCode})"
                 };
             }
         }
@@ -304,13 +257,13 @@
         {
             IsSubmitted = true;
             SubmissionSuccess = false;
-            SubmissionMessage = "Network error. Please check your connection.";
+            SubmissionMessage = "NETWORK ERROR";
         }
         catch (Exception ex)
         {
             IsSubmitted = true;
             SubmissionSuccess = false;
-            SubmissionMessage = "An unexpected error occurred.";
+            SubmissionMessage = "UNEXPECTED ERROR";
             Console.WriteLine($"Score submission error: {ex.Message}");
         }
         finally
@@ -320,16 +273,20 @@
         }
     }
 
+    private string GenerateSessionSignature()
+    {
+        // Simple signature based on time and random value
+        var data = $"{SurvivalTime}-{DateTime.UtcNow.Ticks}-{Guid.NewGuid()}";
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var hash = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(data));
+        return Convert.ToHexString(hash);
+    }
+
     private void RetrySubmission()
     {
         IsSubmitted = false;
         SubmissionSuccess = false;
         StateHasChanged();
-    }
-
-    private async Task SkipSubmission()
-    {
-        await CloseModal();
     }
 
     private async Task CloseModal()
@@ -352,111 +309,83 @@
 
     private void HandleBackdropClick()
     {
-        if (AllowClose && !IsSubmitting)
-        {
-            _ = CloseModal();
-        }
+        // Arcade modals don't close on backdrop click
     }
 
     private async Task HandleKeyPress(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(playerName))
+        if (e.Key == "Enter" && playerInitials.Length >= 1)
         {
             await SubmitScore();
         }
-        else if (e.Key == "Escape" && AllowClose)
-        {
-            await CloseModal();
-        }
     }
 
-    private string FormatDuration(TimeSpan duration)
+    // Simplified DTO classes
+    private class ScoreSubmissionResult
     {
-        if (duration.TotalHours >= 1)
-            return $"{(int)duration.TotalHours}:{duration.Minutes:D2}:{duration.Seconds:D2}";
-        else
-            return $"{duration.Minutes:D2}:{duration.Seconds:D2}";
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public ScoreDetails? ScoreDetails { get; set; }
+    }
+
+    private class ScoreDetails
+    {
+        public int Rank { get; set; }
     }
 }
 
+
 <style>
+    /* Arcade-style modal */
     .modal-backdrop {
         position: fixed;
         top: 0;
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(0, 0, 0, 0.8);
+        background: rgba(0, 0, 0, 0.95);
         display: flex;
         align-items: center;
         justify-content: center;
         z-index: 1000;
-        backdrop-filter: blur(5px);
         animation: fadeIn 0.3s ease-out;
     }
 
     .score-modal {
-        background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
-        border-radius: 15px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: #000;
+        border: 4px solid #00ff00;
+        box-shadow: 0 0 20px #00ff00, inset 0 0 20px rgba(0, 255, 0, 0.1);
         max-width: 500px;
         width: 90%;
         max-height: 90vh;
         overflow-y: auto;
-        animation: slideIn 0.3s ease-out;
+        animation: arcadeGlow 2s ease-in-out infinite;
+        font-family: 'Courier New', monospace;
     }
 
     .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
         padding: 1.5rem;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.05));
+        border-bottom: 2px solid #00ff00;
+        background: rgba(0, 255, 0, 0.05);
     }
 
     .modal-title {
         margin: 0;
-        color: #fff;
-        font-size: 1.5rem;
+        color: #00ff00;
+        font-size: 1.8rem;
         font-weight: bold;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .celebration-icon {
-        animation: bounce 1s ease-in-out infinite;
+        text-align: center;
+        text-shadow: 0 0 10px #00ff00;
+        letter-spacing: 3px;
     }
 
     .trophy-icon {
-        filter: drop-shadow(0 2px 4px rgba(255, 215, 0, 0.5));
-    }
-
-    .close-btn {
-        background: none;
-        border: none;
-        color: #ccc;
         font-size: 2rem;
-        cursor: pointer;
-        padding: 0;
-        width: 30px;
-        height: 30px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        transition: all 0.3s ease;
-    }
-
-    .close-btn:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #fff;
+        animation: bounce 1s ease-in-out infinite;
     }
 
     .modal-content {
-        padding: 1.5rem;
+        padding: 2rem 1.5rem;
     }
 
     .score-display {
@@ -464,316 +393,278 @@
         margin-bottom: 2rem;
     }
 
-    .final-score {
-        margin-bottom: 1rem;
+    .final-time {
+        margin-bottom: 1.5rem;
     }
 
-    .score-label {
+    .time-label {
         display: block;
-        color: #ccc;
-        font-size: 1rem;
+        color: #00ff00;
+        font-size: 1.2rem;
         margin-bottom: 0.5rem;
+        letter-spacing: 2px;
     }
 
-    .score-value {
+    .time-value {
         display: block;
-        color: #4CAF50;
+        color: #ffff00;
+        font-size: 4rem;
+        font-weight: bold;
+        text-shadow: 0 0 20px #ffff00;
+        animation: timePulse 1.5s ease-in-out infinite;
+        font-family: 'Courier New', monospace;
+    }
+
+    .arcade-message {
+        color: #00ff00;
+        font-size: 1.3rem;
+        letter-spacing: 2px;
+        text-align: center;
+        margin: 1.5rem 0;
+        text-shadow: 0 0 5px #00ff00;
+    }
+
+    .submission-form.arcade-style {
+        background: none;
+        padding: 0;
+    }
+
+    .initials-input-group {
+        display: flex;
+        justify-content: center;
+        margin: 2rem 0;
+    }
+
+    .arcade-initials-input {
+        width: 200px;
+        padding: 1rem;
+        border: 3px solid #00ff00;
+        background: #000;
+        color: #ffff00;
         font-size: 3rem;
         font-weight: bold;
-        text-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
-        animation: scoreGlow 2s ease-in-out infinite;
-    }
-
-    .game-stats {
-        display: flex;
-        justify-content: center;
-        gap: 2rem;
-        margin-top: 1rem;
-    }
-
-    .stat-item {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 0.25rem;
-    }
-
-    .stat-icon {
-        font-size: 1.2rem;
-    }
-
-    .stat-label {
-        color: #999;
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-
-    .stat-value {
-        color: #fff;
-        font-weight: bold;
-        font-size: 1.1rem;
-    }
-
-    .submission-form {
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 10px;
-        padding: 1.5rem;
-    }
-
-    .submission-form h3 {
-        margin: 0 0 1rem 0;
-        color: #fff;
         text-align: center;
+        font-family: 'Courier New', monospace;
+        letter-spacing: 10px;
+        text-transform: uppercase;
+        box-shadow: 0 0 10px #00ff00, inset 0 0 10px rgba(0, 255, 0, 0.1);
+        animation: inputBlink 1s step-end infinite;
     }
 
-    .input-group {
-        margin-bottom: 1rem;
-    }
-
-    .input-group label {
-        display: block;
-        color: #ccc;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
-    }
-
-    .player-name-input {
-        width: 100%;
-        padding: 0.75rem;
-        border: 2px solid rgba(255, 255, 255, 0.2);
-        border-radius: 8px;
-        background: rgba(255, 255, 255, 0.1);
-        color: #fff;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-        box-sizing: border-box;
-    }
-
-    .player-name-input:focus {
+    .arcade-initials-input:focus {
         outline: none;
-        border-color: #4CAF50;
-        box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+        border-color: #ffff00;
+        box-shadow: 0 0 15px #ffff00, inset 0 0 15px rgba(255, 255, 0, 0.1);
     }
 
-    .player-name-input.error {
-        border-color: #f44336;
-        box-shadow: 0 0 10px rgba(244, 67, 54, 0.3);
+    .arcade-initials-input.error {
+        border-color: #ff0000;
+        box-shadow: 0 0 15px #ff0000;
     }
 
-    .player-name-input:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
+    .arcade-initials-input::placeholder {
+        color: rgba(0, 255, 0, 0.3);
     }
 
-    .validation-error {
-        color: #f44336;
-        font-size: 0.85rem;
-        margin-top: 0.25rem;
-        display: block;
+    .arcade-initials-input:disabled {
+        opacity: 0.5;
     }
 
-    .character-counter {
-        text-align: right;
-        color: #888;
-        font-size: 0.8rem;
-        margin-top: 0.25rem;
-    }
-
-    .form-actions {
-        display: flex;
-        gap: 1rem;
-        margin-top: 1.5rem;
-    }
-
-    .submit-btn, .skip-btn {
-        flex: 1;
-        padding: 0.75rem 1.5rem;
-        border: none;
-        border-radius: 8px;
+    .validation-error.arcade-error {
+        color: #ff0000;
         font-size: 1rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
+        text-align: center;
+        margin-top: 1rem;
+        text-shadow: 0 0 5px #ff0000;
+        letter-spacing: 2px;
+    }
+
+    .arcade-buttons {
         display: flex;
-        align-items: center;
         justify-content: center;
-        gap: 0.5rem;
+        margin-top: 2rem;
     }
 
-    .submit-btn.primary {
-        background: linear-gradient(135deg, #4CAF50, #45a049);
-        color: white;
+    .arcade-btn {
+        padding: 1rem 2rem;
+        border: 3px solid #00ff00;
+        background: #000;
+        color: #00ff00;
+        font-size: 1.2rem;
+        font-weight: bold;
+        font-family: 'Courier New', monospace;
+        letter-spacing: 2px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-shadow: 0 0 5px #00ff00;
+        box-shadow: 0 0 10px #00ff00;
     }
 
-    .submit-btn.primary:hover:not(:disabled) {
-        background: linear-gradient(135deg, #45a049, #3d8b40);
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+    .arcade-btn:hover:not(:disabled) {
+        background: #00ff00;
+        color: #000;
+        text-shadow: none;
+        box-shadow: 0 0 20px #00ff00;
+        transform: scale(1.05);
     }
 
-    .submit-btn:disabled {
-        opacity: 0.6;
+    .arcade-btn:disabled {
+        opacity: 0.3;
         cursor: not-allowed;
-        transform: none;
     }
 
-    .skip-btn.secondary {
-        background: rgba(255, 255, 255, 0.1);
-        color: #ccc;
-        border: 1px solid rgba(255, 255, 255, 0.2);
+    .arcade-btn.primary-btn {
+        border-color: #ffff00;
+        color: #ffff00;
+        text-shadow: 0 0 5px #ffff00;
+        box-shadow: 0 0 10px #ffff00;
     }
 
-    .skip-btn.secondary:hover:not(:disabled) {
-        background: rgba(255, 255, 255, 0.2);
-        color: #fff;
+    .arcade-btn.primary-btn:hover:not(:disabled) {
+        background: #ffff00;
+        color: #000;
     }
 
-    .spinner {
-        width: 16px;
-        height: 16px;
-        border: 2px solid transparent;
-        border-top: 2px solid currentColor;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
+    .arcade-btn.secondary-btn {
+        border-color: #ff00ff;
+        color: #ff00ff;
+        text-shadow: 0 0 5px #ff00ff;
+        box-shadow: 0 0 10px #ff00ff;
+    }
+
+    .arcade-btn.secondary-btn:hover:not(:disabled) {
+        background: #ff00ff;
+        color: #000;
+    }
+
+    .arcade-btn.retry-btn {
+        border-color: #ff0000;
+        color: #ff0000;
+        text-shadow: 0 0 5px #ff0000;
+        box-shadow: 0 0 10px #ff0000;
     }
 
     .submission-result {
         text-align: center;
-        padding: 1rem;
     }
 
-    .success-message {
-        color: #4CAF50;
-    }
-
+    .success-message,
     .error-message {
-        color: #f44336;
+        padding: 1.5rem;
     }
 
-    .success-icon, .error-icon {
+    .success-message h3,
+    .error-message h3 {
+        color: #00ff00;
+        font-size: 1.5rem;
+        letter-spacing: 3px;
+        margin: 1rem 0;
+        text-shadow: 0 0 10px #00ff00;
+    }
+
+    .error-message h3 {
+        color: #ff0000;
+        text-shadow: 0 0 10px #ff0000;
+    }
+
+    .success-icon,
+    .error-icon {
         font-size: 3rem;
-        margin-bottom: 1rem;
         display: block;
-    }
-
-    .submission-result h3 {
-        margin: 0 0 1rem 0;
-        color: #fff;
-    }
-
-    .submission-result p {
-        color: #ccc;
         margin-bottom: 1rem;
     }
 
-    .rank-display {
-        margin-top: 1rem;
-        padding: 0.75rem;
-        background: rgba(76, 175, 80, 0.1);
-        border-radius: 8px;
-        border: 1px solid rgba(76, 175, 80, 0.3);
+    .success-message p,
+    .error-message p {
+        color: #00ff00;
+        font-size: 1.1rem;
+        letter-spacing: 1px;
+    }
+
+    .arcade-rank {
+        margin-top: 1.5rem;
+        padding: 1rem;
+        border: 2px solid #ffff00;
+        background: rgba(255, 255, 0, 0.05);
     }
 
     .rank-text {
-        color: #ccc;
+        color: #00ff00;
+        font-size: 1.2rem;
+        letter-spacing: 2px;
     }
 
     .rank-value {
-        color: #4CAF50;
+        color: #ffff00;
+        font-size: 2rem;
         font-weight: bold;
-        font-size: 1.2rem;
-    }
-
-    .retry-btn {
-        background: #FF9800;
-        color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
-        cursor: pointer;
-        margin-top: 1rem;
-        transition: background 0.3s ease;
-    }
-
-    .retry-btn:hover {
-        background: #F57C00;
+        text-shadow: 0 0 10px #ffff00;
     }
 
     .modal-footer {
         padding: 1rem 1.5rem;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        border-top: 2px solid #00ff00;
         display: flex;
         gap: 1rem;
         justify-content: center;
+        background: rgba(0, 255, 0, 0.05);
     }
 
-    .action-btn {
-        padding: 0.75rem 1.5rem;
-        border: none;
-        border-radius: 8px;
-        font-size: 1rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        min-width: 120px;
-    }
-
-    .action-btn.primary {
-        background: linear-gradient(135deg, #4CAF50, #45a049);
-        color: white;
-    }
-
-    .action-btn.secondary {
-        background: rgba(255, 255, 255, 0.1);
-        color: #ccc;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-
-    .action-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    .spinner {
+        width: 20px;
+        height: 20px;
+        border: 3px solid transparent;
+        border-top: 3px solid currentColor;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+        margin-right: 0.5rem;
     }
 
     /* Animations */
-    
+    @@keyframes fadeIn {
+        from { opacity: 0; }
         to { opacity: 1; }
     }
 
-    
-        to { 
-            opacity: 1;
-            transform: translateY(0) scale(1);
-        }
+    @@keyframes arcadeGlow {
+        0%, 100% { box-shadow: 0 0 20px #00ff00, inset 0 0 20px rgba(0, 255, 0, 0.1); }
+        50% { box-shadow: 0 0 30px #00ff00, inset 0 0 30px rgba(0, 255, 0, 0.2); }
     }
 
-    
-        40% { transform: translateY(-10px); }
-        60% { transform: translateY(-5px); }
+    @@keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
     }
 
-    
-        50% { text-shadow: 0 4px 20px rgba(76, 175, 80, 0.6); }
+    @@keyframes timePulse {
+        0%, 100% { transform: scale(1); text-shadow: 0 0 20px #ffff00; }
+        50% { transform: scale(1.05); text-shadow: 0 0 30px #ffff00; }
     }
 
-    
+    @@keyframes inputBlink {
+        0%, 49% { border-color: #00ff00; }
+        50%, 100% { border-color: #ffff00; }
+    }
+
+    @@keyframes spin {
         100% { transform: rotate(360deg); }
     }
 
-    /* Responsive design */
-    
-        
-        .game-stats {
-            gap: 1rem;
+    /* Responsive */
+    @@media (max-width: 600px) {
+        .time-value {
+            font-size: 3rem;
         }
-        
-        .form-actions, .modal-footer {
-            flex-direction: column;
-        }
-        
-        .score-value {
+
+        .arcade-initials-input {
+            width: 150px;
             font-size: 2.5rem;
+            letter-spacing: 5px;
+        }
+
+        .modal-footer {
+            flex-direction: column;
         }
     }
 </style>
-

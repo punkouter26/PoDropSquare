@@ -7,15 +7,281 @@
 **PoDropSquare** is a physics-based tower building game where players race against dual timers (20s survival + 2s danger countdown) to build stable towers by dropping colored blocks. The application is built with:
 
 - **Frontend**: Blazor WebAssembly with Matter.js physics engine
-- **Backend**: ASP.NET Core Web API (.NET 9.0)
+- **Backend**: ASP.NET Core Web API (.NET 9.0) using **Minimal APIs + CQRS + Vertical Slice Architecture**
 - **Data**: Azure Table Storage (leaderboard persistence)
 - **Infrastructure**: Azure Bicep, deployed via Azure Developer CLI (azd)
 - **CI/CD**: GitHub Actions with OIDC authentication
-- **Monitoring**: Application Insights + Serilog structured logging
+- **Monitoring**: Application Insights + Serilog structured logging + OpenTelemetry
+- **Package Management**: Centralized via `Directory.Packages.props`
 
-## 📋 Guiding Principles (See `.github/copilot-instructions.md`)
+## 🏛️ Core Architecture & Design Principles
+
+### 1. Vertical Slice Architecture (VSA)
+
+**All code MUST be organized using Vertical Slice Architecture** - features are organized by business capability, not by technical layer.
+
+```
+/src/Po.[AppName].Api/Features/
+├── Scores/
+│   ├── SubmitScore/
+│   │   ├── SubmitScoreCommand.cs      # MediatR command
+│   │   ├── SubmitScoreHandler.cs      # Command handler
+│   │   ├── SubmitScoreValidator.cs    # FluentValidation
+│   │   └── SubmitScoreEndpoint.cs     # Minimal API endpoint
+│   ├── GetLeaderboard/
+│   │   ├── GetLeaderboardQuery.cs
+│   │   ├── GetLeaderboardHandler.cs
+│   │   └── GetLeaderboardEndpoint.cs
+│   └── GetPlayerRank/
+│       ├── GetPlayerRankQuery.cs
+│       ├── GetPlayerRankHandler.cs
+│       └── GetPlayerRankEndpoint.cs
+├── Health/
+│   └── HealthCheckEndpoint.cs
+└── ...other features
+```
+
+**Why Vertical Slices?**
+- ✅ Features are self-contained and easy to locate
+- ✅ Changes to one feature don't affect others
+- ✅ Easy to delete features without breaking the system
+- ✅ Team members can work on different features without conflicts
+
+### 2. SOLID Principles & GoF Patterns
+
+**Document where these are applied:**
+
+| Principle/Pattern | Where Applied | Example |
+|-------------------|---------------|---------|
+| **Single Responsibility** | Each handler, each endpoint | `SubmitScoreHandler` only handles score submission |
+| **Open/Closed** | Strategy pattern for scoring | New scoring algorithms extend base interface |
+| **Dependency Inversion** | All handlers depend on abstractions | `ITableStorageClient`, `IScoreCalculator` |
+| **Command Pattern** | MediatR commands/queries | `SubmitScoreCommand`, `GetLeaderboardQuery` |
+| **Repository Pattern** | Data access abstraction | `IScoreRepository` |
+| **Mediator Pattern** | MediatR for CQRS | Decouples endpoint from business logic |
+
+### 3. Minimal APIs (Required for All New Endpoints)
+
+**❌ Old approach (Controllers):**
+```csharp
+[ApiController]
+[Route("api/[controller]")]
+public class ScoresController : ControllerBase {
+    [HttpPost]
+    public async Task<IActionResult> Submit([FromBody] ScoreSubmission request) { }
+}
+```
+
+**✅ New approach (Minimal APIs):**
+```csharp
+// File: Features/Scores/SubmitScore/SubmitScoreEndpoint.cs
+public static class SubmitScoreEndpoint
+{
+    public static void MapSubmitScore(this IEndpointRouteBuilder app)
+    {
+        app.MapPost("/api/scores", async (
+            SubmitScoreCommand command,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(command, ct);
+            return Results.Ok(result);
+        })
+        .WithName("SubmitScore")
+        .WithOpenApi()
+        .Produces<ScoreResult>(StatusCodes.Status200OK)
+        .ProducesValidationProblem()
+        .WithTags("Scores");
+    }
+}
+```
+
+### 4. CQRS with MediatR
+
+**Separate Commands (writes) from Queries (reads):**
+
+**Command example:**
+```csharp
+// File: Features/Scores/SubmitScore/SubmitScoreCommand.cs
+public record SubmitScoreCommand(string PlayerName, int Score) : IRequest<ScoreResult>;
+
+// File: Features/Scores/SubmitScore/SubmitScoreHandler.cs
+public class SubmitScoreHandler : IRequestHandler<SubmitScoreCommand, ScoreResult>
+{
+    private readonly IScoreRepository _repository;
+    private readonly ILogger<SubmitScoreHandler> _logger;
+    
+    public SubmitScoreHandler(IScoreRepository repository, ILogger<SubmitScoreHandler> logger)
+    {
+        _repository = repository;
+        _logger = logger;
+    }
+    
+    public async Task<ScoreResult> Handle(SubmitScoreCommand request, CancellationToken ct)
+    {
+        _logger.LogInformation("Submitting score: {PlayerName} scored {Score}", 
+            request.PlayerName, request.Score);
+            
+        var entity = new ScoreEntity(request.PlayerName, request.Score);
+        await _repository.SaveAsync(entity, ct);
+        
+        return new ScoreResult(entity.Id, entity.Rank);
+    }
+}
+```
+
+**Query example:**
+```csharp
+// File: Features/Scores/GetLeaderboard/GetLeaderboardQuery.cs
+public record GetLeaderboardQuery(int Top = 10) : IRequest<List<LeaderboardEntry>>;
+
+// File: Features/Scores/GetLeaderboard/GetLeaderboardHandler.cs
+public class GetLeaderboardHandler : IRequestHandler<GetLeaderboardQuery, List<LeaderboardEntry>>
+{
+    private readonly IScoreRepository _repository;
+    
+    public GetLeaderboardHandler(IScoreRepository repository)
+    {
+        _repository = repository;
+    }
+    
+    public async Task<List<LeaderboardEntry>> Handle(GetLeaderboardQuery request, CancellationToken ct)
+    {
+        return await _repository.GetTopScoresAsync(request.Top, ct);
+    }
+}
+```
+
+### 5. OpenTelemetry for Custom Telemetry
+
+**Use OpenTelemetry abstractions for all custom application telemetry:**
+
+```csharp
+// File: Program.cs
+var activitySource = new ActivitySource("PoDropSquare.Api");
+var meter = new Meter("PoDropSquare.Api");
+var scoreCounter = meter.CreateCounter<int>("scores.submitted");
+
+builder.Services.AddSingleton(activitySource);
+builder.Services.AddSingleton(scoreCounter);
+
+// File: Features/Scores/SubmitScore/SubmitScoreHandler.cs
+public class SubmitScoreHandler : IRequestHandler<SubmitScoreCommand, ScoreResult>
+{
+    private readonly ActivitySource _activitySource;
+    private readonly Counter<int> _scoreCounter;
+    
+    public async Task<ScoreResult> Handle(SubmitScoreCommand request, CancellationToken ct)
+    {
+        using var activity = _activitySource.StartActivity("SubmitScore");
+        activity?.SetTag("player.name", request.PlayerName);
+        activity?.SetTag("score", request.Score);
+        
+        // Business logic...
+        
+        _scoreCounter.Add(1, new KeyValuePair<string, object?>("player", request.PlayerName));
+        
+        return result;
+    }
+}
+```
+
+### 6. Robust Error Handling
+
+**All API calls MUST return robust error details on exceptions:**
+
+```csharp
+// File: Middleware/GlobalExceptionMiddleware.cs
+app.UseExceptionHandler(exceptionHandlerApp =>
+{
+    exceptionHandlerApp.Run(async context =>
+    {
+        var exceptionHandlerPathFeature = context.Features.Get<IExceptionHandlerPathFeature>();
+        var exception = exceptionHandlerPathFeature?.Error;
+        
+        var problemDetails = new ProblemDetails
+        {
+            Type = "https://tools.ietf.org/html/rfc7231#section-6.6.1",
+            Title = "An error occurred",
+            Status = StatusCodes.Status500InternalServerError,
+            Detail = exception?.Message, // Return raw exception message
+            Instance = context.Request.Path
+        };
+        
+        problemDetails.Extensions["traceId"] = Activity.Current?.Id ?? context.TraceIdentifier;
+        problemDetails.Extensions["exception"] = exception?.ToString(); // Full stack trace
+        
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        await context.Response.WriteAsJsonAsync(problemDetails);
+    });
+});
+```
+
+## � Solution & Project Structure
+
+### Standard Folder Structure
+
+```
+/
+├── src/                                    # Source code
+│   ├── Po.[AppName].Api/                  # Backend API (Minimal APIs + CQRS)
+│   │   ├── Features/                      # Vertical slices by feature
+│   │   │   ├── Scores/
+│   │   │   │   ├── SubmitScore/
+│   │   │   │   ├── GetLeaderboard/
+│   │   │   │   └── GetPlayerRank/
+│   │   │   ├── Health/
+│   │   │   └── ...
+│   │   ├── Middleware/                    # Global middleware
+│   │   ├── Program.cs                     # App startup & configuration
+│   │   └── appsettings.json
+│   ├── Po.[AppName].Client/               # Blazor WebAssembly frontend
+│   │   ├── Pages/
+│   │   ├── Components/
+│   │   ├── Services/
+│   │   └── wwwroot/
+│   └── Po.[AppName].Shared/               # DTOs and shared models
+│       ├── Commands/
+│       ├── Queries/
+│       └── DTOs/
+├── tests/                                  # All test projects
+│   ├── Po.[AppName].UnitTests/            # xUnit unit tests (mocked dependencies)
+│   ├── Po.[AppName].IntegrationTests/     # xUnit integration tests (WebApplicationFactory + Azurite)
+│   └── Po.[AppName].E2ETests/             # Playwright E2E tests (TypeScript)
+├── infra/                                  # Azure infrastructure (Bicep)
+│   ├── main.bicep
+│   ├── resources.bicep
+│   └── main.parameters.json
+├── docs/                                   # Documentation
+│   ├── PRD.md                             # Product Requirements Document
+│   ├── diagrams/                          # Mermaid diagram files
+│   │   ├── architecture.mmd
+│   │   └── workflows.mmd
+│   ├── KQL-QUERIES.md
+│   └── APPLICATION-INSIGHTS-SETUP.md
+├── scripts/                                # Utility scripts
+│   ├── seed-data.ps1
+│   ├── deploy-dev.ps1
+│   └── run-tests.ps1
+├── Directory.Packages.props               # Centralized NuGet package versions
+├── global.json                            # .NET SDK version (9.0.xxx)
+├── azure.yaml                             # Azure Developer CLI config
+└── PoDropSquare.sln                       # Solution file
+```
+
+### Key Requirements
+
+1. **User-facing HTML `<title>` tag** must match the `.sln` file name (e.g., "PoDropSquare")
+2. **All NuGet packages** use `Directory.Packages.props` for centralized version management
+3. **Features folder** contains vertical slices organized by business capability
+4. **Shared project** contains DTOs, commands, queries used by both API and Client
+
+## 📋 Guiding Principles
 
 ### 1. Automate with CLI Tools
+
+**Prefer single-line CLI commands** over creating one-shot PowerShell scripts for simple tasks.
+
 Always prefer CLI automation over manual steps:
 - `dotnet` - Build, test, run, add packages
 - `az` - Azure resource management
@@ -32,38 +298,23 @@ dotnet test
 
 # ❌ Bad - Manual file editing
 # Manually editing .csproj to add PackageReference
+
+# ✅ Good - Single-line CLI command
+dotnet ef database update --project src/Po.PoDropSquare.Api
+
+# ❌ Bad - Creating a one-shot script for this
+# Creating update-database.ps1 with one command
 ```
 
-### 2. Follow SOLID Principles
-- **Single Responsibility** - Each class has one reason to change
-- **Open/Closed** - Open for extension, closed for modification
-- **Liskov Substitution** - Derived classes must be substitutable
-- **Interface Segregation** - Many specific interfaces > one general
-- **Dependency Inversion** - Depend on abstractions, not concretions
-
-**Example:**
-```csharp
-// ✅ Good - Single Responsibility
-public class ScoreRepository { /* only handles data access */ }
-public class ScoreService { /* only handles business logic */ }
-public class ScoresController { /* only handles HTTP */ }
-
-// ❌ Bad - Multiple responsibilities
-public class ScoreManager {
-    public void SaveToDatabase() { }
-    public void CalculateScore() { }
-    public IActionResult HandleHttpRequest() { }
-}
-```
-
-### 3. Maintain Simplicity
+### 2. Maintain Simplicity
 - **Keep files under ~500 lines** - Refactor larger files into focused components
 - **Remove unused code** - Delete dead code regularly
 - **Avoid over-abstraction** - Use built-in framework features before creating custom abstractions
 - **Prefer composition over inheritance** - Use services/components over deep class hierarchies
 
-### 4. Test-Driven Development (TDD)
-**Always follow the TDD cycle:**
+### 3. Test-Driven Development (TDD)
+
+**Strictly follow the TDD workflow: Red -> Green -> Refactor**
 
 1. **🔴 Red** - Write a failing test
 2. **🟢 Green** - Implement minimum code to pass
@@ -72,133 +323,527 @@ public class ScoreManager {
 **Example workflow:**
 ```bash
 # 1. Write failing test
-# File: ScoreServiceTests.cs
+# File: Features/Scores/SubmitScore/SubmitScoreHandlerTests.cs
 [Fact]
-public void CalculateScore_WithStableBlocks_ReturnsHighScore() {
+public async Task Handle_WithValidScore_SavesAndReturnsResult() {
     // Arrange
-    var service = new ScoreService();
-    var blocks = CreateStableBlocks();
+    var repository = new Mock<IScoreRepository>();
+    var handler = new SubmitScoreHandler(repository.Object, _logger);
+    var command = new SubmitScoreCommand("Alice", 1500);
     
     // Act
-    var score = service.CalculateScore(blocks);
+    var result = await handler.Handle(command, CancellationToken.None);
     
     // Assert
-    Assert.True(score > 1000);  // ❌ FAILS - not implemented yet
+    Assert.NotNull(result);  // ❌ FAILS - not implemented yet
+    repository.Verify(r => r.SaveAsync(It.IsAny<ScoreEntity>(), It.IsAny<CancellationToken>()), Times.Once);
 }
 
 # 2. Run test to see it fail
-dotnet test --filter "CalculateScore_WithStableBlocks_ReturnsHighScore"
+dotnet test --filter "Handle_WithValidScore_SavesAndReturnsResult"
 
 # 3. Implement minimum code
-public int CalculateScore(List<Block> blocks) {
-    return blocks.Sum(b => b.StabilityPoints);
+public async Task<ScoreResult> Handle(SubmitScoreCommand request, CancellationToken ct)
+{
+    var entity = new ScoreEntity(request.PlayerName, request.Score);
+    await _repository.SaveAsync(entity, ct);
+    return new ScoreResult(entity.Id, entity.Rank);
 }
 
 # 4. Run test again
-dotnet test --filter "CalculateScore_WithStableBlocks_ReturnsHighScore"  # ✅ PASSES
+dotnet test --filter "Handle_WithValidScore_SavesAndReturnsResult"  # ✅ PASSES
 
-# 5. Refactor if needed
-public int CalculateScore(List<Block> blocks) {
-    const int StabilityMultiplier = 10;
-    return blocks.Sum(b => b.StabilityPoints * StabilityMultiplier);
+# 5. Refactor if needed (add logging, validation, etc.)
+public async Task<ScoreResult> Handle(SubmitScoreCommand request, CancellationToken ct)
+{
+    _logger.LogInformation("Submitting score: {PlayerName} scored {Score}", 
+        request.PlayerName, request.Score);
+        
+    var entity = new ScoreEntity(request.PlayerName, request.Score);
+    await _repository.SaveAsync(entity, ct);
+    
+    return new ScoreResult(entity.Id, entity.Rank);
 }
 
 # 6. Verify tests still pass
 dotnet test
 ```
 
+### 4. Environment & Configuration
+
+**Requirements:**
+- **Target Framework**: All projects must target `.NET 9.0` (`<TargetFramework>net9.0</TargetFramework>`)
+- **SDK Version**: `global.json` specifies `9.0.xxx` SDK version
+- **Nullable Reference Types**: Enabled in all `.csproj` files (`<Nullable>enable</Nullable>`)
+- **Local Secrets**: Use .NET User Secrets for sensitive data (never commit secrets)
+- **Storage**: Azure Table Storage (production) + Azurite (local/testing)
+
+**Example global.json:**
+```json
+{
+  "sdk": {
+    "version": "9.0.100",
+    "rollForward": "latestFeature"
+  }
+}
+```
+
 ### 5. Always Run API Project (Not Blazor Standalone)
+
 The API project **hosts** the Blazor WebAssembly application at ports:
 - **HTTP**: `http://localhost:5000`
 - **HTTPS**: `https://localhost:5001`
 
 **✅ Correct way to run the app:**
 ```bash
-dotnet run --project backend/src/Po.PoDropSquare.Api
+dotnet run --project src/Po.PoDropSquare.Api
 # App available at http://localhost:5000
 ```
 
 **❌ Incorrect - Don't run Blazor standalone:**
 ```bash
 # This won't work - CORS issues, API not available
-dotnet run --project frontend/src/Po.PoDropSquare.Blazor
+dotnet run --project src/Po.PoDropSquare.Client
 ```
 
-## 🏗️ Architecture Patterns
+## 🏗️ Backend (API) Implementation
 
-### Project Organization
+### API Documentation
 
-The codebase follows **Clean Architecture** with vertical slices:
+**Enable Swagger/OpenAPI for all endpoints:**
 
+```csharp
+// File: Program.cs
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 ```
-backend/src/
-├── Po.PoDropSquare.Api/          # HTTP Layer (Controllers, Middleware)
-│   ├── Controllers/              # API endpoints
-│   ├── Middleware/               # Global error handling, rate limiting
-│   └── Program.cs                # App configuration
-├── Po.PoDropSquare.Core/         # Domain Layer (Entities, Contracts)
-│   ├── Entities/                 # Domain models (ScoreEntry, LeaderboardEntry)
-│   └── Contracts/                # DTOs and API contracts
-├── Po.PoDropSquare.Data/         # Data Access Layer
-│   └── Repositories/             # Azure Table Storage access
-└── Po.PoDropSquare.Services/     # Application Layer (Business Logic)
-    └── Services/                 # Score calculation, leaderboard logic
 
-frontend/src/
-└── Po.PoDropSquare.Blazor/       # Presentation Layer
-    ├── Pages/                    # Routable pages (Home, Game, HighScores)
-    ├── Components/               # Reusable UI components
-    ├── Services/                 # HTTP clients, state management
-    └── Models/                   # Client-side view models
+**Generate .http files with sample requests** for manual testing:
+
+```http
+### Submit Score
+POST {{baseUrl}}/api/scores
+Content-Type: application/json
+
+{
+  "playerName": "Alice",
+  "score": 1500
+}
+
+### Get Leaderboard
+GET {{baseUrl}}/api/scores/leaderboard?top=10
+```
+
+### Health Checks
+
+**Implement comprehensive health checks at `/api/health`:**
+
+```csharp
+// File: Features/Health/HealthCheckEndpoint.cs
+public static class HealthCheckEndpoint
+{
+    public static void MapHealthCheck(this IEndpointRouteBuilder app)
+    {
+        app.MapHealthChecks("/api/health", new HealthCheckOptions
+        {
+            ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+        })
+        .WithName("HealthCheck")
+        .WithOpenApi()
+        .WithTags("Health");
+    }
+}
+
+// File: Program.cs
+builder.Services.AddHealthChecks()
+    .AddAzureTableStorage(builder.Configuration["AzureTableStorage:ConnectionString"])
+    .AddApplicationInsightsPublisher();
+```
+
+### Serilog Configuration
+
+**Use structured logging with Serilog:**
+
+```csharp
+// File: Program.cs
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .WriteTo.Console()
+    .WriteTo.Debug()
+    .WriteTo.ApplicationInsights(services.GetRequiredService<TelemetryConfiguration>(), 
+        TelemetryConverter.Traces));
+```
+
+**appsettings.Development.json:**
+```json
+{
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": {
+        "Microsoft": "Warning",
+        "System": "Warning"
+      }
+    },
+    "WriteTo": [
+      { "Name": "Console" },
+      { "Name": "Debug" }
+    ]
+  }
+}
+```
+
+**appsettings.json (Production):**
+```json
+{
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Information"
+    },
+    "WriteTo": [
+      { "Name": "ApplicationInsights" }
+    ]
+  }
+}
+```
+
+### Error Handling
+
+**Use structured logging in all catch blocks:**
+
+```csharp
+public async Task<ScoreResult> Handle(SubmitScoreCommand request, CancellationToken ct)
+{
+    try
+    {
+        _logger.LogInformation("Submitting score: {PlayerName} scored {Score}", 
+            request.PlayerName, request.Score);
+            
+        var entity = new ScoreEntity(request.PlayerName, request.Score);
+        await _repository.SaveAsync(entity, ct);
+        
+        return new ScoreResult(entity.Id, entity.Rank);
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Failed to submit score for {PlayerName}", request.PlayerName);
+        throw;
+    }
+}
+```
+
+## 🎨 Frontend (Client) Implementation
+
+### UI Framework
+
+**Primary component library: Microsoft.FluentUI.AspNetCore.Components**
+
+```razor
+@using Microsoft.FluentUI.AspNetCore.Components
+
+<FluentButton Appearance="Appearance.Accent" @onclick="SubmitScore">
+    Submit Score
+</FluentButton>
+
+<FluentDataGrid Items="@leaderboardEntries">
+    <PropertyColumn Property="@(e => e.PlayerName)" Title="Player" />
+    <PropertyColumn Property="@(e => e.Score)" Title="Score" />
+</FluentDataGrid>
+```
+
+**Only use Radzen.Blazor if essential for complex requirements.**
+
+### Responsive Design
+
+**UI must be mobile-first (portrait mode), responsive, fluid, and touch-friendly:**
+
+```css
+/* Mobile-first approach */
+.game-container {
+    width: 100%;
+    padding: 1rem;
+    touch-action: manipulation;
+}
+
+/* Tablet and larger */
+@media (min-width: 768px) {
+    .game-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+    .game-container {
+        max-width: 1200px;
+    }
+}
 ```
 
 ### Naming Conventions
 
-- **Projects**: `Po.PoDropSquare.[LayerName]` (e.g., `Po.PoDropSquare.Api`)
-- **Azure Tables**: `PoPoDropSquare[TableName]` (e.g., `PoPoDropSquareScores`)
-- **Controllers**: Suffix with `Controller` (e.g., `ScoresController`)
-- **Services**: Suffix with `Service` (e.g., `ScoreService`)
-- **Repositories**: Suffix with `Repository` (e.g., `ScoreRepository`)
-- **Tests**: `[ClassName]Tests.cs` (e.g., `ScoreServiceTests.cs`)
-
-### Dependency Flow
-
-```
-API Layer (Controllers)
-    ↓ depends on
-Application Layer (Services)
-    ↓ depends on
-Domain Layer (Entities, Contracts)
-    ↑ referenced by
-Data Access Layer (Repositories)
-```
-
-**Rule:** Dependencies flow **inward** toward the domain. Domain has **zero** external dependencies.
+- **Projects**: `Po.[AppName].[LayerName]` (e.g., `Po.PoDropSquare.Api`)
+- **Features**: PascalCase folder names matching business capability (e.g., `Scores`, `Health`)
+- **Commands**: Suffix with `Command` (e.g., `SubmitScoreCommand`)
+- **Queries**: Suffix with `Query` (e.g., `GetLeaderboardQuery`)
+- **Handlers**: Suffix with `Handler` (e.g., `SubmitScoreHandler`)
+- **Endpoints**: Suffix with `Endpoint` (e.g., `SubmitScoreEndpoint`)
+- **Tests**: `[ClassName]Tests.cs` (e.g., `SubmitScoreHandlerTests.cs`)
 
 ## 🧪 Testing Strategy
 
-### Test Types
+### Test Types & Requirements
 
-| Type | Framework | Purpose | Example |
-|------|-----------|---------|---------|
-| **Unit Tests** | xUnit | Test single classes in isolation | `ScoreCalculationTests.cs` |
-| **Integration Tests** | xUnit + WebApplicationFactory | Test API endpoints with real infrastructure | `ScoreSubmissionContractTests.cs` |
-| **Component Tests** | bUnit | Test Blazor components | `GameTimerTests.cs` |
-| **E2E Tests** | Playwright | Test full user workflows | `CoreGameplayE2ETests.cs` |
+| Type | Framework | Purpose | Requirements |
+|------|-----------|---------|--------------|
+| **Unit Tests** | xUnit | Test handlers/services in isolation | Mock all external dependencies |
+| **Integration Tests** | xUnit + WebApplicationFactory | Test API endpoints with infrastructure | Use isolated Azurite, generate test data with Bogus |
+| **Component Tests** | bUnit | Test Blazor components | Mock IHttpClientFactory, IJSRuntime |
+| **E2E Tests** | Playwright (TypeScript) | Test full user workflows | Target Chromium, use network interception, axe-core, screenshots |
 
 ### Test Naming Convention
 
+**Pattern: `MethodName_StateUnderTest_ExpectedBehavior`**
+
 ```csharp
-// Pattern: MethodName_StateUnderTest_ExpectedBehavior
+// Unit Test Examples
+[Fact]
+public async Task Handle_WithValidScore_SavesAndReturnsResult() { }
 
 [Fact]
-public void CalculateScore_WithZeroBlocks_ReturnsZero() { }
+public async Task Handle_WithNullPlayerName_ThrowsArgumentException() { }
+
+// Integration Test Examples
+[Fact]
+public async Task SubmitScore_WithValidData_Returns201Created() { }
 
 [Fact]
-public void CalculateScore_WithStableBlocks_ReturnsPositiveScore() { }
+public async Task GetLeaderboard_WithTop10_ReturnsOrderedByScoreDescending() { }
+
+// Component Test Examples
+[Fact]
+public void GameTimer_WhenTimeExpires_TriggersOnTimeUpCallback() { }
 
 [Fact]
-public void SubmitScore_WithInvalidPlayerName_ReturnsBadRequest() { }
+public void ScoreDisplay_WithZeroScore_ShowsZero() { }
+```
+
+### Unit Tests (xUnit)
+
+**Must cover all new backend business logic (handlers, validators):**
+
+```csharp
+// File: tests/Po.[AppName].UnitTests/Features/Scores/SubmitScore/SubmitScoreHandlerTests.cs
+public class SubmitScoreHandlerTests
+{
+    private readonly Mock<IScoreRepository> _repositoryMock;
+    private readonly Mock<ILogger<SubmitScoreHandler>> _loggerMock;
+    private readonly SubmitScoreHandler _handler;
+    
+    public SubmitScoreHandlerTests()
+    {
+        _repositoryMock = new Mock<IScoreRepository>();
+        _loggerMock = new Mock<ILogger<SubmitScoreHandler>>();
+        _handler = new SubmitScoreHandler(_repositoryMock.Object, _loggerMock.Object);
+    }
+    
+    [Fact]
+    public async Task Handle_WithValidScore_SavesAndReturnsResult()
+    {
+        // Arrange
+        var command = new SubmitScoreCommand("Alice", 1500);
+        var expectedEntity = new ScoreEntity("Alice", 1500);
+        _repositoryMock.Setup(r => r.SaveAsync(It.IsAny<ScoreEntity>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedEntity);
+        
+        // Act
+        var result = await _handler.Handle(command, CancellationToken.None);
+        
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(expectedEntity.Id, result.Id);
+        _repositoryMock.Verify(r => r.SaveAsync(
+            It.Is<ScoreEntity>(e => e.PlayerName == "Alice" && e.Score == 1500),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+}
+```
+
+### Integration Tests (xUnit + WebApplicationFactory)
+
+**Create a "happy path" test for every new API endpoint:**
+
+```csharp
+// File: tests/Po.[AppName].IntegrationTests/Features/Scores/SubmitScoreIntegrationTests.cs
+public class SubmitScoreIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+{
+    private readonly HttpClient _client;
+    private readonly Faker<ScoreSubmission> _scoreFaker;
+    
+    public SubmitScoreIntegrationTests(WebApplicationFactory<Program> factory)
+    {
+        _client = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                // Configure Azurite for testing
+                services.Configure<AzureStorageOptions>(options =>
+                {
+                    options.ConnectionString = "UseDevelopmentStorage=true";
+                });
+            });
+        }).CreateClient();
+        
+        // Use Bogus to generate realistic test data
+        _scoreFaker = new Faker<ScoreSubmission>()
+            .RuleFor(s => s.PlayerName, f => f.Name.FirstName())
+            .RuleFor(s => s.Score, f => f.Random.Int(100, 10000));
+    }
+    
+    [Fact]
+    public async Task SubmitScore_WithValidData_Returns201Created()
+    {
+        // Arrange
+        var scoreSubmission = _scoreFaker.Generate();
+        
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/scores", scoreSubmission);
+        
+        // Assert
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ScoreResult>();
+        Assert.NotNull(result);
+        Assert.NotEqual(Guid.Empty, result.Id);
+    }
+}
+```
+
+### Component Tests (bUnit)
+
+**Must cover all new Blazor components:**
+
+```csharp
+// File: tests/Po.[AppName].Blazor.Tests/Components/GameTimerTests.cs
+public class GameTimerTests : TestContext
+{
+    [Fact]
+    public void GameTimer_WhenInitialized_DisplaysInitialTime()
+    {
+        // Arrange & Act
+        var cut = RenderComponent<GameTimer>(parameters => parameters
+            .Add(p => p.InitialSeconds, 20));
+        
+        // Assert
+        cut.Find(".timer-display").TextContent.Should().Be("20");
+    }
+    
+    [Fact]
+    public async Task GameTimer_WhenTimeExpires_TriggersCallback()
+    {
+        // Arrange
+        var callbackTriggered = false;
+        var cut = RenderComponent<GameTimer>(parameters => parameters
+            .Add(p => p.InitialSeconds, 1)
+            .Add(p => p.OnTimeUp, () => { callbackTriggered = true; }));
+        
+        // Act
+        await Task.Delay(1100); // Wait for timer
+        
+        // Assert
+        callbackTriggered.Should().BeTrue();
+    }
+}
+```
+
+### E2E Tests (Playwright + TypeScript)
+
+**Write tests in TypeScript, targeting Chromium:**
+
+```typescript
+// File: tests/Po.[AppName].E2ETests/gameplay.spec.ts
+import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+test.describe('Core Gameplay', () => {
+  test.beforeEach(async ({ page }) => {
+    // Mock API responses for stable testing
+    await page.route('**/api/scores/leaderboard', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { playerName: 'Alice', score: 1500, rank: 1 },
+          { playerName: 'Bob', score: 1200, rank: 2 }
+        ])
+      });
+    });
+    
+    await page.goto('http://localhost:5000/game');
+  });
+
+  test('should display game board on load', async ({ page }) => {
+    // Arrange & Act
+    const gameBoard = page.locator('.game-board');
+    
+    // Assert
+    await expect(gameBoard).toBeVisible();
+  });
+
+  test('should drop block when button clicked', async ({ page }) => {
+    // Arrange
+    const dropButton = page.locator('button:has-text("Drop Block")');
+    
+    // Act
+    await dropButton.click();
+    
+    // Assert
+    const blocks = page.locator('.game-block');
+    await expect(blocks).toHaveCount(1);
+  });
+
+  test('should pass accessibility checks', async ({ page }) => {
+    // Arrange
+    const accessibilityScanResults = await new AxeBuilder({ page }).analyze();
+    
+    // Assert
+    expect(accessibilityScanResults.violations).toEqual([]);
+  });
+
+  test('should match visual snapshot', async ({ page }) => {
+    // Arrange & Act
+    await page.waitForLoadState('networkidle');
+    
+    // Assert (visual regression)
+    await expect(page).toHaveScreenshot('game-initial-state.png');
+  });
+});
+
+test.describe('Mobile Gameplay', () => {
+  test.use({
+    viewport: { width: 375, height: 667 }, // iPhone SE
+    isMobile: true,
+    hasTouch: true
+  });
+
+  test('should be touch-friendly on mobile', async ({ page }) => {
+    await page.goto('http://localhost:5000/game');
+    
+    // Tap to drop block
+    await page.locator('button:has-text("Drop Block")').tap();
+    
+    const blocks = page.locator('.game-block');
+    await expect(blocks).toHaveCount(1);
+  });
+});
 ```
 
 ### Writing Good Tests
@@ -206,13 +851,13 @@ public void SubmitScore_WithInvalidPlayerName_ReturnsBadRequest() { }
 **✅ Good test - Arrange/Act/Assert pattern:**
 ```csharp
 [Fact]
-public async Task GetTop10_ReturnsOrderedByScoreDescending() {
+public async Task GetLeaderboard_WithTop10_ReturnsOrderedByScoreDescending() {
     // Arrange
     var client = _factory.CreateClient();
     await SeedScores(new[] { 100, 500, 300 });
     
     // Act
-    var response = await client.GetAsync("/api/scores/top10");
+    var response = await client.GetAsync("/api/scores/leaderboard?top=10");
     var result = await response.Content.ReadFromJsonAsync<List<LeaderboardEntry>>();
     
     // Assert
@@ -240,16 +885,23 @@ public async Task TestEverything() {
 dotnet test
 
 # Specific test project
-dotnet test backend/tests/Po.PoDropSquare.Api.Tests/
+dotnet test tests/Po.PoDropSquare.UnitTests/
 
 # Specific test class
-dotnet test --filter "ScoreServiceTests"
+dotnet test --filter "SubmitScoreHandlerTests"
 
 # Specific test method
-dotnet test --filter "CalculateScore_WithStableBlocks_ReturnsHighScore"
+dotnet test --filter "Handle_WithValidScore_SavesAndReturnsResult"
 
 # With detailed output
 dotnet test --logger "console;verbosity=detailed"
+
+# E2E tests (requires running app)
+cd tests/Po.PoDropSquare.E2ETests
+npx playwright test
+npx playwright test --project=chromium
+npx playwright test --headed  # Run with visible browser
+npx playwright show-report    # View test report
 ```
 
 **Note:** E2E tests require the application to be running. They run automatically in CI/CD after deployment.
@@ -272,23 +924,26 @@ git commit -m "Add Serilog.Sinks.Seq for centralized logging"
 
 ### Adding a New API Endpoint
 
-**Follow TDD workflow:**
+**Follow TDD workflow with Vertical Slice Architecture:**
 
-1. **Write contract test first:**
+1. **Write integration test first:**
 ```csharp
-// File: backend/tests/Po.PoDropSquare.Api.Tests/PlayerStatsContractTests.cs
+// File: tests/Po.[AppName].IntegrationTests/Features/Stats/GetPlayerStatsIntegrationTests.cs
 [Fact]
-public async Task GetPlayerStats_ReturnsPlayerStatistics() {
+public async Task GetPlayerStats_WithValidPlayer_ReturnsPlayerStatistics() {
     // Arrange
     var client = _factory.CreateClient();
-    await SeedPlayerData("Alice", new[] { 100, 200, 300 });
+    var faker = new Faker();
+    var playerName = faker.Name.FirstName();
+    await SeedPlayerData(playerName, new[] { 100, 200, 300 });
     
     // Act
-    var response = await client.GetAsync("/api/stats/Alice");
+    var response = await client.GetAsync($"/api/stats/{playerName}");
     
     // Assert
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     var stats = await response.Content.ReadFromJsonAsync<PlayerStats>();
+    Assert.NotNull(stats);
     Assert.Equal(3, stats.GamesPlayed);
     Assert.Equal(200, stats.AverageScore);
 }
@@ -296,44 +951,91 @@ public async Task GetPlayerStats_ReturnsPlayerStatistics() {
 
 2. **Run test to see it fail:**
 ```bash
-dotnet test --filter "GetPlayerStats_ReturnsPlayerStatistics"
+dotnet test --filter "GetPlayerStats_WithValidPlayer_ReturnsPlayerStatistics"
 # ❌ Fails - endpoint doesn't exist yet
 ```
 
-3. **Implement minimum code:**
+3. **Create the vertical slice (Query + Handler + Endpoint):**
+
 ```csharp
-// File: backend/src/Po.PoDropSquare.Api/Controllers/StatsController.cs
-[ApiController]
-[Route("api/[controller]")]
-public class StatsController : ControllerBase {
-    private readonly IStatsService _statsService;
+// File: src/Po.[AppName].Api/Features/Stats/GetPlayerStats/GetPlayerStatsQuery.cs
+public record GetPlayerStatsQuery(string PlayerName) : IRequest<PlayerStats>;
+
+// File: src/Po.[AppName].Api/Features/Stats/GetPlayerStats/GetPlayerStatsHandler.cs
+public class GetPlayerStatsHandler : IRequestHandler<GetPlayerStatsQuery, PlayerStats>
+{
+    private readonly IScoreRepository _repository;
+    private readonly ILogger<GetPlayerStatsHandler> _logger;
     
-    public StatsController(IStatsService statsService) {
-        _statsService = statsService;
+    public GetPlayerStatsHandler(IScoreRepository repository, ILogger<GetPlayerStatsHandler> logger)
+    {
+        _repository = repository;
+        _logger = logger;
     }
     
-    [HttpGet("{playerName}")]
-    public async Task<ActionResult<PlayerStats>> GetPlayerStats(string playerName) {
-        var stats = await _statsService.GetPlayerStatsAsync(playerName);
-        return Ok(stats);
+    public async Task<PlayerStats> Handle(GetPlayerStatsQuery request, CancellationToken ct)
+    {
+        _logger.LogInformation("Getting stats for player: {PlayerName}", request.PlayerName);
+        
+        var scores = await _repository.GetPlayerScoresAsync(request.PlayerName, ct);
+        
+        return new PlayerStats
+        {
+            PlayerName = request.PlayerName,
+            GamesPlayed = scores.Count,
+            AverageScore = scores.Any() ? (int)scores.Average(s => s.Score) : 0,
+            HighScore = scores.Any() ? scores.Max(s => s.Score) : 0
+        };
+    }
+}
+
+// File: src/Po.[AppName].Api/Features/Stats/GetPlayerStats/GetPlayerStatsEndpoint.cs
+public static class GetPlayerStatsEndpoint
+{
+    public static void MapGetPlayerStats(this IEndpointRouteBuilder app)
+    {
+        app.MapGet("/api/stats/{playerName}", async (
+            string playerName,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var query = new GetPlayerStatsQuery(playerName);
+            var result = await mediator.Send(query, ct);
+            return Results.Ok(result);
+        })
+        .WithName("GetPlayerStats")
+        .WithOpenApi()
+        .Produces<PlayerStats>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status404NotFound)
+        .WithTags("Stats");
     }
 }
 ```
 
-4. **Run test again:**
+4. **Register the endpoint in Program.cs:**
+```csharp
+// File: Program.cs
+app.MapGetPlayerStats();
+```
+
+5. **Run test again:**
 ```bash
-dotnet test --filter "GetPlayerStats_ReturnsPlayerStatistics"
+dotnet test --filter "GetPlayerStats_WithValidPlayer_ReturnsPlayerStatistics"
 # ✅ Passes
 ```
 
-5. **Add to REST client tests:**
+6. **Add to .http file for manual testing:**
 ```http
 ### Get Player Statistics
 GET {{baseUrl}}/api/stats/Alice
 Accept: application/json
+
+### Get Player Statistics - Not Found
+GET {{baseUrl}}/api/stats/NonExistentPlayer
+Accept: application/json
 ```
 
-6. **Build and verify:**
+7. **Build and verify all tests pass:**
 ```bash
 dotnet build
 dotnet test

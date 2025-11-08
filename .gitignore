@@ -468,3 +468,20 @@ yarn-error.log*
 __azurite_db_*.json
 __blobstorage__/
 __queuestorage__/
+
+##
+## Code Coverage
+##
+coverage-results/
+TestResults/
+**/coverage/
+!docs/coverage/  # Keep generated coverage HTML report for CI verification
+
+##
+## Test Debugging Artifacts
+##
+test-output.txt
+test-full.txt
+**/DEBUG/
+client_log.txt
+server_log.txt

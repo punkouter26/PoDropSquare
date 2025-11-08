@@ -12,6 +12,10 @@ namespace Po.PoDropSquare.Blazor.Tests;
 public class TimerSystemTests : TestContext
 {
     [Fact]
+
+    [Trait("Category", "Component")]
+
+    [Trait("Feature", "TimerSystem")]
     public async Task Timer_ShouldStartAtThirtySeconds()
     {
         var cut = RenderComponent<GameBoard>();
@@ -20,6 +24,12 @@ public class TimerSystemTests : TestContext
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "TimerSystem")]
     public async Task Timer_ShouldCountDownEverySecond()
     {
         var cut = RenderComponent<GameBoard>();
@@ -32,6 +42,12 @@ public class TimerSystemTests : TestContext
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "TimerSystem")]
     public async Task DangerCountdown_ShouldTriggerAtFiveSeconds()
     {
         var cut = RenderComponent<GameBoard>();
@@ -44,6 +60,12 @@ public class TimerSystemTests : TestContext
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "TimerSystem")]
     public async Task Timer_ShouldDisplayWarningColorInDangerZone()
     {
         var cut = RenderComponent<GameBoard>();
@@ -56,6 +78,12 @@ public class TimerSystemTests : TestContext
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "TimerSystem")]
     public async Task Timer_ShouldNotGoNegative()
     {
         var cut = RenderComponent<GameBoard>();

@@ -21,6 +21,12 @@ public class LogControllerTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LogController")]
     public async Task POST_LogClient_WithValidMessage_ShouldReturn200()
     {
         // Arrange
@@ -79,6 +85,12 @@ public class LogControllerTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LogController")]
     public async Task POST_LogClient_WithNullData_ShouldReturn400()
     {
         // Arrange
@@ -92,6 +104,12 @@ public class LogControllerTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LogController")]
     public async Task POST_LogError_WithValidError_ShouldReturn200()
     {
         // Arrange
@@ -123,6 +141,12 @@ public class LogControllerTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LogController")]
     public async Task POST_LogError_WithMinimalData_ShouldSucceed()
     {
         // Arrange
@@ -148,6 +172,12 @@ public class LogControllerTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LogController")]
     public async Task POST_LogError_WithNullData_ShouldReturn400()
     {
         // Arrange
@@ -161,6 +191,12 @@ public class LogControllerTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LogController")]
     public async Task POST_LogClient_ShouldHandleUserAgentHeader()
     {
         // Arrange
@@ -188,6 +224,12 @@ public class LogControllerTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LogController")]
     public async Task POST_LogClient_MultipleConcurrent_ShouldAllSucceed()
     {
         // Arrange
@@ -220,6 +262,12 @@ public class LogControllerTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LogController")]
     public async Task POST_LogClient_ResponseTime_ShouldBeFast()
     {
         // Arrange
@@ -255,6 +303,12 @@ public class LogControllerTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LogController")]
     public void CleanupResources()
     {
         Dispose(true);

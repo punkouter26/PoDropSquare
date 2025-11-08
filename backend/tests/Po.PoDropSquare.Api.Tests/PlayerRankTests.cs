@@ -20,6 +20,12 @@ public class PlayerRankTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "PlayerRank")]
     public async Task GET_PlayerRank_WithValidInitials_ShouldReturn200()
     {
         // Act
@@ -75,6 +81,12 @@ public class PlayerRankTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "PlayerRank")]
     public async Task GET_PlayerRank_ForNonExistentPlayer_ShouldReturn404()
     {
         // Use highly unlikely initials
@@ -98,6 +110,12 @@ public class PlayerRankTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "PlayerRank")]
     public async Task GET_PlayerRank_ShouldReturnCorrectContentType()
     {
         // Act
@@ -108,6 +126,12 @@ public class PlayerRankTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "PlayerRank")]
     public async Task GET_PlayerRank_ResponseTime_ShouldBeFast()
     {
         // Arrange
@@ -124,6 +148,12 @@ public class PlayerRankTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "PlayerRank")]
     public async Task GET_PlayerRank_MultipleConcurrent_ShouldSucceed()
     {
         // Arrange
@@ -155,6 +185,12 @@ public class PlayerRankTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "PlayerRank")]
     public void CleanupResources()
     {
         Dispose(true);

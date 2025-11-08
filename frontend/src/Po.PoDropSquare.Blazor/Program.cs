@@ -19,7 +19,7 @@ builder.Logging.ClearProviders();
 // builder.Logging.AddConsole(); // Keep console logging for development - removed due to dependency issues
 
 // Add remote logging provider - pass the base address from the host environment
-builder.Services.AddSingleton<RemoteLoggerProvider>(sp => 
+builder.Services.AddSingleton<RemoteLoggerProvider>(sp =>
     new RemoteLoggerProvider(sp, builder.HostEnvironment.BaseAddress));
 
 // Register the remote logger provider

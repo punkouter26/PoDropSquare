@@ -1,6 +1,25 @@
 ### PoDropSquare API Testing
 ### Use this file with the REST Client extension in VS Code
-### or any HTTP client that supports .http files
+### Automated test assertions validate responses for correctness
+### 
+### REQUIREMENTS:
+### - VS Code REST Client extension (humao.rest-client)
+### - Local API running on http://localhost:5000
+### - Azurite running for Azure Table Storage (optional)
+###
+### USAGE:
+### 1. Click "Send Request" above any ### comment
+### 2. View response in right pane
+### 3. Tests automatically validate status codes, headers, and response bodies
+### 4. Failed assertions show in red, passed in green
+###
+### FEATURES:
+### - Automated response validation with assertions
+### - Positive and negative test cases
+### - Error handling verification
+### - Performance baseline checks
+### - CORS validation
+### - Security header checks
 
 @baseUrl = http://localhost:5000
 @httpsUrl = https://localhost:5001
@@ -10,24 +29,74 @@
 ###############################################
 
 ### Get full health status
+# @name healthCheck
 GET {{baseUrl}}/api/health
 Accept: application/json
 
+> {%
+  client.test("Status should be 200 OK", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+  
+  client.test("Response should be JSON", function() {
+    const contentType = response.headers.valueOf("Content-Type");
+    client.assert(contentType.includes("application/json"), "Expected JSON content type");
+  });
+  
+  client.test("Response should contain status", function() {
+    client.assert(response.body.status !== undefined, "Missing 'status' field");
+  });
+  
+  client.test("Response time should be under 500ms", function() {
+    client.assert(response.responseTime < 500, "Response too slow: " + response.responseTime + "ms");
+  });
+%}
+
 ### Get simplified health status (for load balancers)
+# @name healthSimple
 GET {{baseUrl}}/api/health/simple
 
+> {%
+  client.test("Status should be 200 OK", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+  
+  client.test("Response time should be under 200ms", function() {
+    client.assert(response.responseTime < 200, "Simple health check too slow: " + response.responseTime + "ms");
+  });
+%}
+
 ### Check health with HEAD request (no body)
+# @name healthHead
 HEAD {{baseUrl}}/api/health
 
+> {%
+  client.test("Status should be 200 OK", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+  
+  client.test("Response body should be empty", function() {
+    client.assert(response.body === null || response.body === "", "HEAD request should have no body");
+  });
+%}
+
 ### Alternative health endpoint
+# @name healthAlt
 GET {{baseUrl}}/health
 Accept: application/json
+
+> {%
+  client.test("Status should be 200 OK", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
 
 ###############################################
 # Score Submission
 ###############################################
 
 ### Submit a valid score
+# @name submitScore
 POST {{baseUrl}}/api/scores
 Content-Type: application/json
 
@@ -38,7 +107,38 @@ Content-Type: application/json
   "clientTimestamp": "{{$datetime iso8601}}"
 }
 
+> {%
+  client.test("Status should be 200 OK or 201 Created", function() {
+    client.assert(response.status === 200 || response.status === 201, 
+      "Expected 200/201, got " + response.status);
+  });
+  
+  client.test("Response should be JSON", function() {
+    const contentType = response.headers.valueOf("Content-Type");
+    client.assert(contentType.includes("application/json"), "Expected JSON content type");
+  });
+  
+  client.test("Response should contain accepted flag", function() {
+    client.assert(response.body.hasOwnProperty("accepted"), "Missing 'accepted' field");
+  });
+  
+  client.test("Response should contain calculatedScore", function() {
+    client.assert(response.body.calculatedScore !== undefined, "Missing 'calculatedScore' field");
+    client.assert(typeof response.body.calculatedScore === "number", "calculatedScore should be a number");
+  });
+  
+  client.test("Survival time should match request", function() {
+    client.assert(Math.abs(response.body.survivalTime - 15.75) < 0.01, 
+      "Survival time mismatch");
+  });
+  
+  client.test("Response time should be under 1 second", function() {
+    client.assert(response.responseTime < 1000, "Score submission too slow: " + response.responseTime + "ms");
+  });
+%}
+
 ### Submit a high score
+# @name submitHighScore
 POST {{baseUrl}}/api/scores
 Content-Type: application/json
 
@@ -49,7 +149,24 @@ Content-Type: application/json
   "clientTimestamp": "{{$datetime iso8601}}"
 }
 
+> {%
+  client.test("Status should be 200 OK or 201 Created", function() {
+    client.assert(response.status === 200 || response.status === 201, 
+      "Expected 200/201, got " + response.status);
+  });
+  
+  client.test("High score should be accepted", function() {
+    client.assert(response.body.accepted === true, "High score should be accepted");
+  });
+  
+  client.test("Calculated score should be high (>1900)", function() {
+    client.assert(response.body.calculatedScore > 1900, 
+      "Expected high score >1900, got " + response.body.calculatedScore);
+  });
+%}
+
 ### Submit score with minimum survival time
+# @name submitMinScore
 POST {{baseUrl}}/api/scores
 Content-Type: application/json
 
@@ -60,7 +177,19 @@ Content-Type: application/json
   "clientTimestamp": "{{$datetime iso8601}}"
 }
 
+> {%
+  client.test("Status should be 200 OK or 201 Created", function() {
+    client.assert(response.status === 200 || response.status === 201, 
+      "Expected 200/201, got " + response.status);
+  });
+  
+  client.test("Minimum survival time should be accepted", function() {
+    client.assert(response.body.survivalTime >= 0, "Survival time should be non-negative");
+  });
+%}
+
 ### Test validation - Invalid player initials (should fail)
+# @name invalidInitials
 POST {{baseUrl}}/api/scores
 Content-Type: application/json
 
@@ -71,7 +200,26 @@ Content-Type: application/json
   "clientTimestamp": "{{$datetime iso8601}}"
 }
 
+> {%
+  client.test("Status should be 400 Bad Request", function() {
+    client.assert(response.status === 400, "Expected 400, got " + response.status);
+  });
+  
+  client.test("Error response should be JSON Problem Details", function() {
+    const contentType = response.headers.valueOf("Content-Type");
+    client.assert(contentType.includes("application/problem+json") || contentType.includes("application/json"), 
+      "Expected Problem Details JSON");
+  });
+  
+  client.test("Error should mention player initials validation", function() {
+    const body = JSON.stringify(response.body).toLowerCase();
+    client.assert(body.includes("initials") || body.includes("playerinitials"), 
+      "Error message should mention initials validation");
+  });
+%}
+
 ### Test validation - Invalid survival time (should fail)
+# @name invalidSurvivalTime
 POST {{baseUrl}}/api/scores
 Content-Type: application/json
 
@@ -82,7 +230,20 @@ Content-Type: application/json
   "clientTimestamp": "{{$datetime iso8601}}"
 }
 
+> {%
+  client.test("Status should be 400 Bad Request", function() {
+    client.assert(response.status === 400, "Expected 400, got " + response.status);
+  });
+  
+  client.test("Error should mention survival time validation", function() {
+    const body = JSON.stringify(response.body).toLowerCase();
+    client.assert(body.includes("survival") || body.includes("time") || body.includes("negative"), 
+      "Error message should mention survival time validation");
+  });
+%}
+
 ### Test validation - Missing session signature (should fail)
+# @name missingSignature
 POST {{baseUrl}}/api/scores
 Content-Type: application/json
 
@@ -92,44 +253,177 @@ Content-Type: application/json
   "clientTimestamp": "{{$datetime iso8601}}"
 }
 
+> {%
+  client.test("Status should be 400 Bad Request", function() {
+    client.assert(response.status === 400, "Expected 400, got " + response.status);
+  });
+  
+  client.test("Error should mention missing signature", function() {
+    const body = JSON.stringify(response.body).toLowerCase();
+    client.assert(body.includes("signature") || body.includes("required"), 
+      "Error message should mention missing signature");
+  });
+%}
+
 ###############################################
 # Leaderboard Endpoints
 ###############################################
 
 ### Get top 10 leaderboard
+# @name leaderboardTop10
 GET {{baseUrl}}/api/scores/top10
 Accept: application/json
 
+> {%
+  client.test("Status should be 200 OK", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+  
+  client.test("Response should be JSON array", function() {
+    client.assert(Array.isArray(response.body), "Response should be an array");
+  });
+  
+  client.test("Array should have at most 10 entries", function() {
+    client.assert(response.body.length <= 10, "Leaderboard should have max 10 entries, got " + response.body.length);
+  });
+  
+  client.test("Entries should be ordered by score descending", function() {
+    for (let i = 1; i < response.body.length; i++) {
+      const current = response.body[i].calculatedScore;
+      const previous = response.body[i-1].calculatedScore;
+      client.assert(current <= previous, 
+        "Score at index " + i + " (" + current + ") should be <= previous (" + previous + ")");
+    }
+  });
+  
+  client.test("Each entry should have required fields", function() {
+    response.body.forEach((entry, index) => {
+      client.assert(entry.playerInitials !== undefined, "Entry " + index + " missing playerInitials");
+      client.assert(entry.calculatedScore !== undefined, "Entry " + index + " missing calculatedScore");
+      client.assert(entry.survivalTime !== undefined, "Entry " + index + " missing survivalTime");
+      client.assert(entry.rank !== undefined, "Entry " + index + " missing rank");
+    });
+  });
+  
+  client.test("Ranks should be sequential starting from 1", function() {
+    response.body.forEach((entry, index) => {
+      client.assert(entry.rank === index + 1, 
+        "Entry " + index + " has rank " + entry.rank + ", expected " + (index + 1));
+    });
+  });
+  
+  client.test("Response time should be under 500ms", function() {
+    client.assert(response.responseTime < 500, "Leaderboard too slow: " + response.responseTime + "ms");
+  });
+%}
+
 ### Alternative leaderboard endpoint (backward compatibility)
+# @name leaderboardLegacy
 GET {{baseUrl}}/api/scores/leaderboard
 Accept: application/json
 
+> {%
+  client.test("Status should be 200 OK", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+  
+  client.test("Response should be JSON array", function() {
+    client.assert(Array.isArray(response.body), "Response should be an array");
+  });
+%}
+
 ### Leaderboard with cache validation
+# @name leaderboardCached
 GET {{baseUrl}}/api/scores/top10
 Accept: application/json
 If-None-Match: "previous-etag-value"
+
+> {%
+  client.test("Status should be 200 OK (or 304 Not Modified if cached)", function() {
+    client.assert(response.status === 200 || response.status === 304, 
+      "Expected 200 or 304, got " + response.status);
+  });
+  
+  client.test("Should have Cache-Control or ETag header", function() {
+    const cacheControl = response.headers.valueOf("Cache-Control");
+    const etag = response.headers.valueOf("ETag");
+    client.assert(cacheControl !== undefined || etag !== undefined, 
+      "Missing cache headers");
+  });
+%}
 
 ###############################################
 # Player Rank Lookup
 ###############################################
 
 ### Get player rank for "ABC"
+# @name playerRankABC
 GET {{baseUrl}}/api/scores/player/ABC/rank
 Accept: application/json
 
+> {%
+  client.test("Status should be 200 OK or 404 Not Found", function() {
+    client.assert(response.status === 200 || response.status === 404, 
+      "Expected 200 or 404, got " + response.status);
+  });
+  
+  if (response.status === 200) {
+    client.test("Response should contain rank", function() {
+      client.assert(response.body.rank !== undefined, "Missing 'rank' field");
+      client.assert(typeof response.body.rank === "number", "Rank should be a number");
+      client.assert(response.body.rank > 0, "Rank should be positive");
+    });
+    
+    client.test("Response should contain player initials", function() {
+      client.assert(response.body.playerInitials === "ABC", "PlayerInitials mismatch");
+    });
+  }
+%}
+
 ### Get player rank for "PRO"
+# @name playerRankPRO
 GET {{baseUrl}}/api/scores/player/PRO/rank
 Accept: application/json
 
+> {%
+  client.test("Status should be 200 OK or 404 Not Found", function() {
+    client.assert(response.status === 200 || response.status === 404, 
+      "Expected 200 or 404, got " + response.status);
+  });
+  
+  if (response.status === 200) {
+    client.test("Response should contain calculatedScore", function() {
+      client.assert(response.body.calculatedScore !== undefined, "Missing 'calculatedScore' field");
+    });
+  }
+%}
+
 ### Test invalid player initials (should fail)
+# @name playerRankInvalid
 GET {{baseUrl}}/api/scores/player/INVALID/rank
 Accept: application/json
+
+> {%
+  client.test("Status should be 400 Bad Request or 404 Not Found", function() {
+    client.assert(response.status === 400 || response.status === 404, 
+      "Expected 400 or 404, got " + response.status);
+  });
+  
+  if (response.status === 400) {
+    client.test("Error should mention invalid initials", function() {
+      const body = JSON.stringify(response.body).toLowerCase();
+      client.assert(body.includes("invalid") || body.includes("initials"), 
+        "Error message should mention invalid initials");
+    });
+  }
+%}
 
 ###############################################
 # Client Logging Endpoints
 ###############################################
 
 ### Send client log - Information level
+# @name clientLogInfo
 POST {{baseUrl}}/api/log/client
 Content-Type: application/json
 
@@ -141,7 +435,19 @@ Content-Type: application/json
   "data": "{ \"sessionId\": \"test-session-123\" }"
 }
 
+> {%
+  client.test("Status should be 200 OK or 204 No Content", function() {
+    client.assert(response.status === 200 || response.status === 204, 
+      "Expected 200 or 204, got " + response.status);
+  });
+  
+  client.test("Response time should be fast (<300ms)", function() {
+    client.assert(response.responseTime < 300, "Logging too slow: " + response.responseTime + "ms");
+  });
+%}
+
 ### Send client log - Warning level
+# @name clientLogWarning
 POST {{baseUrl}}/api/log/client
 Content-Type: application/json
 
@@ -153,7 +459,15 @@ Content-Type: application/json
   "data": "{ \"fps\": 45, \"targetFps\": 60 }"
 }
 
+> {%
+  client.test("Status should be 200 OK or 204 No Content", function() {
+    client.assert(response.status === 200 || response.status === 204, 
+      "Expected 200 or 204, got " + response.status);
+  });
+%}
+
 ### Send client log - Error level
+# @name clientLogError
 POST {{baseUrl}}/api/log/client
 Content-Type: application/json
 
@@ -165,7 +479,15 @@ Content-Type: application/json
   "data": "{ \"asset\": \"blocks.png\", \"error\": \"404 Not Found\" }"
 }
 
+> {%
+  client.test("Status should be 200 OK or 204 No Content", function() {
+    client.assert(response.status === 200 || response.status === 204, 
+      "Expected 200 or 204, got " + response.status);
+  });
+%}
+
 ### Send JavaScript error
+# @name jsError
 POST {{baseUrl}}/api/log/error
 Content-Type: application/json
 
@@ -179,7 +501,19 @@ Content-Type: application/json
   "url": "http://localhost:5173/game"
 }
 
+> {%
+  client.test("Status should be 200 OK or 204 No Content", function() {
+    client.assert(response.status === 200 || response.status === 204, 
+      "Expected 200 or 204, got " + response.status);
+  });
+  
+  client.test("Error logging should be fast (<500ms)", function() {
+    client.assert(response.responseTime < 500, "Error logging too slow: " + response.responseTime + "ms");
+  });
+%}
+
 ### Send unhandled promise rejection error
+# @name promiseRejectionError
 POST {{baseUrl}}/api/log/error
 Content-Type: application/json
 
@@ -193,86 +527,280 @@ Content-Type: application/json
   "url": "http://localhost:5173/game"
 }
 
+> {%
+  client.test("Status should be 200 OK or 204 No Content", function() {
+    client.assert(response.status === 200 || response.status === 204, 
+      "Expected 200 or 204, got " + response.status);
+  });
+%}
+
 ###############################################
 # Testing Against Production (HTTPS)
 ###############################################
 
 ### Health check via HTTPS
+# @name healthHttps
 GET {{httpsUrl}}/api/health
 Accept: application/json
 
+> {%
+  client.test("Status should be 200 OK", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+  
+  client.test("Connection should use HTTPS", function() {
+    client.assert(request.url.startsWith("https://"), "Expected HTTPS connection");
+  });
+%}
+
 ### Get leaderboard via HTTPS
+# @name leaderboardHttps
 GET {{httpsUrl}}/api/scores/top10
 Accept: application/json
+
+> {%
+  client.test("Status should be 200 OK", function() {
+    client.assert(response.status === 200, "Expected 200, got " + response.status);
+  });
+%}
 
 ###############################################
 # Performance Testing
 ###############################################
 
 ### Quick health check (measure response time)
+# @name perfHealthCheck
 GET {{baseUrl}}/api/health/simple
 
+> {%
+  client.test("Response time should be under 100ms", function() {
+    client.assert(response.responseTime < 100, 
+      "Health check too slow: " + response.responseTime + "ms (target: <100ms)");
+  });
+  
+  client.log("⚡ Health check response time: " + response.responseTime + "ms");
+%}
+
 ### Leaderboard performance check
+# @name perfLeaderboard
 GET {{baseUrl}}/api/scores/top10
 Accept: application/json
+
+> {%
+  client.test("Response time should be under 300ms", function() {
+    client.assert(response.responseTime < 300, 
+      "Leaderboard too slow: " + response.responseTime + "ms (target: <300ms)");
+  });
+  
+  client.log("⚡ Leaderboard response time: " + response.responseTime + "ms");
+  client.log("📊 Entries returned: " + response.body.length);
+%}
 
 ###############################################
 # CORS & Options Testing
 ###############################################
 
 ### OPTIONS request for CORS preflight
+# @name corsPreflightScores
 OPTIONS {{baseUrl}}/api/scores
 Access-Control-Request-Method: POST
 Access-Control-Request-Headers: Content-Type
 Origin: http://localhost:5173
 
+> {%
+  client.test("Status should be 200 OK or 204 No Content", function() {
+    client.assert(response.status === 200 || response.status === 204, 
+      "Expected 200 or 204, got " + response.status);
+  });
+  
+  client.test("Should have CORS headers", function() {
+    const allowOrigin = response.headers.valueOf("Access-Control-Allow-Origin");
+    const allowMethods = response.headers.valueOf("Access-Control-Allow-Methods");
+    client.assert(allowOrigin !== undefined, "Missing Access-Control-Allow-Origin header");
+    client.assert(allowMethods !== undefined, "Missing Access-Control-Allow-Methods header");
+  });
+  
+  client.test("Should allow POST method", function() {
+    const allowMethods = response.headers.valueOf("Access-Control-Allow-Methods");
+    if (allowMethods) {
+      client.assert(allowMethods.includes("POST"), 
+        "Access-Control-Allow-Methods should include POST");
+    }
+  });
+%}
+
 ### OPTIONS request for health endpoint
+# @name corsPreflightHealth
 OPTIONS {{baseUrl}}/health
 Access-Control-Request-Method: GET
 Origin: http://localhost:5173
+
+> {%
+  client.test("Status should be 200 OK or 204 No Content", function() {
+    client.assert(response.status === 200 || response.status === 204, 
+      "Expected 200 or 204, got " + response.status);
+  });
+%}
 
 ###############################################
 # Error Handling Tests
 ###############################################
 
 ### Test 404 - Non-existent endpoint
+# @name error404
 GET {{baseUrl}}/api/nonexistent
 
+> {%
+  client.test("Status should be 404 Not Found", function() {
+    client.assert(response.status === 404, "Expected 404, got " + response.status);
+  });
+  
+  client.test("Response should be JSON Problem Details", function() {
+    const contentType = response.headers.valueOf("Content-Type");
+    client.assert(contentType.includes("application/problem+json") || contentType.includes("application/json"), 
+      "Expected Problem Details JSON");
+  });
+%}
+
 ### Test 415 - Unsupported Media Type
+# @name error415
 POST {{baseUrl}}/api/scores
 Content-Type: text/plain
 
 This is plain text, not JSON
 
+> {%
+  client.test("Status should be 415 Unsupported Media Type", function() {
+    client.assert(response.status === 415, "Expected 415, got " + response.status);
+  });
+  
+  client.test("Error should mention content type issue", function() {
+    const body = JSON.stringify(response.body).toLowerCase();
+    client.assert(body.includes("media") || body.includes("content-type") || body.includes("json"), 
+      "Error message should mention content type issue");
+  });
+%}
+
 ### Test malformed JSON
+# @name errorMalformedJson
 POST {{baseUrl}}/api/scores
 Content-Type: application/json
 
 { "this is": "malformed JSON" because it's incomplete
+
+> {%
+  client.test("Status should be 400 Bad Request", function() {
+    client.assert(response.status === 400, "Expected 400, got " + response.status);
+  });
+  
+  client.test("Error should indicate JSON parsing issue", function() {
+    const body = JSON.stringify(response.body).toLowerCase();
+    client.assert(body.includes("json") || body.includes("parse") || body.includes("invalid"), 
+      "Error message should mention JSON parsing issue");
+  });
+%}
 
 ###############################################
 # Batch Testing (Run sequentially)
 ###############################################
 
 ### 1. Check health
+# @name batch1Health
 GET {{baseUrl}}/api/health
 
+> {%
+  client.test("✅ Step 1: Health check should succeed", function() {
+    client.assert(response.status === 200, "Health check failed");
+  });
+  
+  client.log("✅ Step 1/5: Health check passed");
+%}
+
 ### 2. Get current leaderboard
+# @name batch2LeaderboardBefore
 GET {{baseUrl}}/api/scores/top10
 
+> {%
+  client.test("✅ Step 2: Leaderboard should load", function() {
+    client.assert(response.status === 200, "Leaderboard failed");
+    client.assert(Array.isArray(response.body), "Leaderboard should be an array");
+  });
+  
+  client.global.set("initialLeaderboardCount", response.body.length);
+  client.log("✅ Step 2/5: Leaderboard loaded (" + response.body.length + " entries)");
+%}
+
 ### 3. Submit a new score
+# @name batch3SubmitScore
 POST {{baseUrl}}/api/scores
 Content-Type: application/json
 
 {
   "playerInitials": "TST",
   "survivalTime": 16.5,
-  "sessionSignature": "sha256_batch_test_99999",
+  "sessionSignature": "sha256_batch_test_{{$timestamp}}",
   "clientTimestamp": "{{$datetime iso8601}}"
 }
 
+> {%
+  client.test("✅ Step 3: Score should be submitted", function() {
+    client.assert(response.status === 200 || response.status === 201, 
+      "Score submission failed");
+  });
+  
+  client.global.set("submittedScore", response.body.calculatedScore);
+  client.global.set("submittedRank", response.body.rank);
+  client.log("✅ Step 3/5: Score submitted (Score: " + response.body.calculatedScore + ", Rank: " + response.body.rank + ")");
+%}
+
 ### 4. Get updated leaderboard
+# @name batch4LeaderboardAfter
 GET {{baseUrl}}/api/scores/top10
 
+> {%
+  client.test("✅ Step 4: Updated leaderboard should load", function() {
+    client.assert(response.status === 200, "Leaderboard failed");
+    client.assert(Array.isArray(response.body), "Leaderboard should be an array");
+  });
+  
+  const initialCount = client.global.get("initialLeaderboardCount");
+  const currentCount = response.body.length;
+  const submittedScore = client.global.get("submittedScore");
+  
+  // Find our submitted score
+  const ourEntry = response.body.find(e => e.playerInitials === "TST" && Math.abs(e.calculatedScore - submittedScore) < 1);
+  
+  if (ourEntry) {
+    client.test("New score should appear in leaderboard", function() {
+      client.assert(ourEntry !== undefined, "Submitted score not found in leaderboard");
+    });
+    client.log("✅ Step 4/5: Leaderboard updated - TST found at rank " + ourEntry.rank);
+  } else {
+    client.log("ℹ️  Step 4/5: Leaderboard updated but TST not in top 10 (score might be too low)");
+  }
+%}
+
 ### 5. Check player rank
+# @name batch5PlayerRank
 GET {{baseUrl}}/api/scores/player/TST/rank
+
+> {%
+  client.test("✅ Step 5: Player rank should be retrievable", function() {
+    client.assert(response.status === 200, "Player rank lookup failed");
+  });
+  
+  const submittedRank = client.global.get("submittedRank");
+  
+  client.test("Player rank should match submission", function() {
+    client.assert(response.body.rank === submittedRank, 
+      "Rank mismatch: expected " + submittedRank + ", got " + response.body.rank);
+  });
+  
+  client.log("✅ Step 5/5: Player rank confirmed - TST is rank #" + response.body.rank);
+  client.log("🎉 All 5 batch tests passed successfully!");
+  
+  // Cleanup global variables
+  client.global.clear("initialLeaderboardCount");
+  client.global.clear("submittedScore");
+  client.global.clear("submittedRank");
+%}

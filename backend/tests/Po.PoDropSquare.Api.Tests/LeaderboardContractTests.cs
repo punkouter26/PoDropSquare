@@ -21,6 +21,12 @@ public class LeaderboardContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LeaderboardContract")]
     public async Task GET_ScoresTop10_ShouldReturn200WithLeaderboardData()
     {
         // Act
@@ -43,6 +49,12 @@ public class LeaderboardContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LeaderboardContract")]
     public async Task GET_ScoresTop10_WithEmptyLeaderboard_ShouldReturnEmptyArray()
     {
         // Act
@@ -64,6 +76,12 @@ public class LeaderboardContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LeaderboardContract")]
     public async Task GET_ScoresTop10_ShouldReturnMaximum10Entries()
     {
         // Act
@@ -80,6 +98,12 @@ public class LeaderboardContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LeaderboardContract")]
     public async Task GET_ScoresTop10_EntriesShouldBeInDescendingOrder()
     {
         // Act
@@ -116,6 +140,12 @@ public class LeaderboardContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LeaderboardContract")]
     public async Task GET_ScoresTop10_EachEntryShouldHaveRequiredFields()
     {
         // Act
@@ -154,6 +184,12 @@ public class LeaderboardContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LeaderboardContract")]
     public async Task GET_ScoresTop10_ShouldSetCorrectContentType()
     {
         // Act
@@ -165,6 +201,12 @@ public class LeaderboardContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LeaderboardContract")]
     public async Task GET_ScoresTop10_ShouldSupportConditionalRequests()
     {
         // Act - First request
@@ -208,6 +250,12 @@ public class LeaderboardContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LeaderboardContract")]
     public async Task GET_ScoresTop10_ShouldHandleCacheHeaders()
     {
         // Act
@@ -227,6 +275,12 @@ public class LeaderboardContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LeaderboardContract")]
     public async Task GET_ScoresTop10_WithAcceptHeader_ShouldReturnJson()
     {
         // Arrange
@@ -245,6 +299,12 @@ public class LeaderboardContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LeaderboardContract")]
     public async Task GET_ScoresTop10_WithInvalidAcceptHeader_ShouldReturn406()
     {
         // Arrange
@@ -264,6 +324,12 @@ public class LeaderboardContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LeaderboardContract")]
     public async Task GET_ScoresTop10_ResponseTime_ShouldBeFast()
     {
         // Arrange
@@ -290,6 +356,12 @@ public class LeaderboardContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "LeaderboardContract")]
     public void CleanupResources()
     {
         Dispose(true);

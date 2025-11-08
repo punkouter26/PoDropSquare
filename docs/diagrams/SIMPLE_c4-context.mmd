@@ -1,0 +1,14 @@
+%% Simplified C4 Context Diagram for PoDropSquare
+%% High-level view with only key components
+
+graph TB
+    Player["👤 Player"]
+    PoDropSquare["🎮 PoDropSquare<br/>Game System"]
+    Azure["☁️ Azure Cloud"]
+    
+    Player -->|"Plays game"| PoDropSquare
+    PoDropSquare -->|"Stores data &<br/>telemetry"| Azure
+    
+    style PoDropSquare fill:#512BD4,stroke:#333,stroke-width:4px,color:#fff
+    style Player fill:#4CAF50,stroke:#333,stroke-width:2px,color:#fff
+    style Azure fill:#0078D4,stroke:#333,stroke-width:2px,color:#fff

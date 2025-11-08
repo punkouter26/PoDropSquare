@@ -1,0 +1,62 @@
+%% C4 Container Diagram for PoDropSquare
+%% Shows the high-level technology choices and containers within the system
+
+graph TB
+    subgraph "User's Browser"
+        BlazorWASM["⚡ Blazor WebAssembly<br/>(SPA)<br/>[C#, WebAssembly]"]
+        MatterJS["⚙️ Matter.js<br/>(Physics Engine)<br/>[JavaScript]"]
+        AppInsightsJS["📊 App Insights SDK<br/>(Client Telemetry)<br/>[JavaScript]"]
+        
+        BlazorWASM -->|"Uses physics engine"| MatterJS
+        BlazorWASM -->|"Sends client telemetry"| AppInsightsJS
+    end
+    
+    subgraph "Azure App Service"
+        API["🔌 ASP.NET Core API<br/>(Web API)<br/>[.NET 9.0, C#]"]
+        HealthChecks["💊 Health Checks<br/>(Monitoring)<br/>[ASP.NET Health]"]
+        Serilog["📝 Serilog<br/>(Structured Logging)<br/>[Serilog]"]
+        OTel["🔭 OpenTelemetry<br/>(Custom Metrics)<br/>[OTel SDK]"]
+        
+        API -->|"Logs to"| Serilog
+        API -->|"Custom spans/metrics"| OTel
+        API -->|"Exposes"| HealthChecks
+    end
+    
+    subgraph "Backend Services"
+        ScoreService["⚽ Score Service<br/>(Business Logic)<br/>[C#]"]
+        LeaderboardService["🏆 Leaderboard Service<br/>(Rankings)<br/>[C#]"]
+        
+        API -->|"Calls"| ScoreService
+        API -->|"Calls"| LeaderboardService
+    end
+    
+    subgraph "Data Layer"
+        ScoreRepo["💾 Score Repository<br/>(Data Access)<br/>[C#]"]
+        TableStorage["📊 Azure Table Storage<br/>(NoSQL DB)<br/>[Azure Storage]"]
+        
+        ScoreService -->|"Uses"| ScoreRepo
+        LeaderboardService -->|"Uses"| ScoreRepo
+        ScoreRepo -->|"Reads/Writes"| TableStorage
+    end
+    
+    subgraph "Monitoring & Telemetry"
+        AppInsights["📈 Application Insights<br/>(APM)<br/>[Azure Monitor]"]
+        LogAnalytics["📋 Log Analytics<br/>(Logs)<br/>[Azure Monitor]"]
+        
+        Serilog -->|"Sends logs"| LogAnalytics
+        OTel -->|"Sends metrics/traces"| AppInsights
+        AppInsightsJS -->|"Sends client events"| AppInsights
+        HealthChecks -->|"Probes dependencies"| TableStorage
+    end
+    
+    Player["👤 Player"] -->|"HTTPS/JSON<br/>(REST API)"| API
+    Player -->|"Plays game"| BlazorWASM
+    
+    BlazorWASM -->|"HTTP/JSON<br/>(Score submission,<br/>Leaderboard)"| API
+    
+    style BlazorWASM fill:#512BD4,stroke:#333,stroke-width:3px,color:#fff
+    style API fill:#0078D4,stroke:#333,stroke-width:3px,color:#fff
+    style TableStorage fill:#FFD93D,stroke:#333,stroke-width:2px,color:#000
+    style AppInsights fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style ScoreService fill:#4CAF50,stroke:#333,stroke-width:2px,color:#fff
+    style LeaderboardService fill:#4CAF50,stroke:#333,stroke-width:2px,color:#fff

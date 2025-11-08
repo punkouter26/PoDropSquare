@@ -74,7 +74,9 @@ public class LeaderboardService : ILeaderboardService
                 TotalEntries = totalEntries,
                 CacheInfo = new CacheInfo
                 {
-                    ETag = GenerateETag(entries),
+                    ETag = entries.Count == 0 ? "empty" :
+                           Po.PoDropSquare.Core.Utilities.ETagGenerator.Generate(
+                               entries.Select(e => $"{e.PlayerInitials}:{e.SurvivalTime}:{e.Rank}").ToArray()),
                     Expires = DateTime.UtcNow.Add(DefaultCacheExpiry),
                     MaxAge = (int)DefaultCacheExpiry.TotalSeconds
                 }
@@ -275,21 +277,5 @@ public class LeaderboardService : ILeaderboardService
         {
             _cache.Remove($"top_leaderboard_{i}");
         }
-    }
-
-    /// <summary>
-    /// Generates an ETag for cache validation
-    /// </summary>
-    private static string GenerateETag(List<LeaderboardEntry> entries)
-    {
-        if (entries.Count == 0)
-        {
-            return "empty";
-        }
-
-        // Create ETag based on the content hash
-        var contentString = string.Join("|", entries.Select(e => $"{e.PlayerInitials}:{e.SurvivalTime}:{e.Rank}"));
-        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(contentString));
-        return Convert.ToHexString(hash)[..16]; // Use first 16 characters of hash
     }
 }

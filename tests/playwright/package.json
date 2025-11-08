@@ -1,0 +1,32 @@
+{
+  "name": "podropsquare-playwright-tests",
+  "version": "1.0.0",
+  "description": "TypeScript Playwright E2E tests for PoDropSquare",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:chromium": "playwright test --project=chromium",
+    "test:mobile": "playwright test --project=mobile-chrome",
+    "test:accessibility": "playwright test --grep @accessibility",
+    "test:ui": "playwright test --ui",
+    "show-report": "playwright show-report",
+    "install-browsers": "playwright install chromium"
+  },
+  "keywords": [
+    "playwright",
+    "e2e",
+    "testing",
+    "typescript",
+    "blazor"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@axe-core/playwright": "^4.11.0",
+    "@playwright/test": "^1.56.1",
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  }
+}

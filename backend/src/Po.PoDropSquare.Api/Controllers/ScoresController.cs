@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Po.PoDropSquare.Core.Contracts;
+using Po.PoDropSquare.Core.Validation;
 using Po.PoDropSquare.Services.Services;
 using System.ComponentModel.DataAnnotations;
 
@@ -202,30 +203,29 @@ public class ScoresController : ControllerBase
     }
 
     /// <summary>
-    /// Retrieves the top leaderboard entries with caching and performance optimization.
+    /// Retrieves scores with optional filtering and pagination (RESTful endpoint)
     /// </summary>
-    /// <param name="count">Number of entries to retrieve (default 10, max 50)</param>
-    /// <param name="playerInitials">Optional player initials to include player rank information</param>
+    /// <param name="top">Number of top scores to retrieve (default 10, max 50)</param>
+    /// <param name="player">Optional player initials to include rank information</param>
     /// <returns>Leaderboard response with top entries and caching information</returns>
-    /// <response code="200">Successfully retrieved leaderboard</response>
+    /// <response code="200">Successfully retrieved scores</response>
     /// <response code="400">Invalid request parameters</response>
     /// <response code="500">Internal server error</response>
-    [HttpGet("top10")]
-    [HttpGet("leaderboard")] // Keep backward compatibility
+    [HttpGet]
     [ProducesResponseType(typeof(LeaderboardResponse), 200)]
     [ProducesResponseType(typeof(ErrorResponse), 400)]
     [ProducesResponseType(typeof(ErrorResponse), 500)]
-    [ResponseCache(Duration = 30, Location = ResponseCacheLocation.Any, VaryByQueryKeys = new[] { "count", "playerInitials" })]
-    public async Task<IActionResult> GetTopLeaderboard(
-        [FromQuery] int? count = null,
-        [FromQuery] string? playerInitials = null)
+    [ResponseCache(Duration = 30, Location = ResponseCacheLocation.Any, VaryByQueryKeys = new[] { "top", "player" })]
+    public async Task<IActionResult> GetScores(
+        [FromQuery] int? top = null,
+        [FromQuery] string? player = null)
     {
-        var requestedCount = count ?? 10;
+        var requestedCount = top ?? 10;
 
         // Validate request parameters
         if (requestedCount < 1 || requestedCount > 50)
         {
-            _logger.LogWarning("Invalid leaderboard count requested: {Count}", requestedCount);
+            _logger.LogWarning("Invalid score count requested: {Count}", requestedCount);
             return BadRequest(new ErrorResponse
             {
                 Error = "InvalidParameter",
@@ -234,7 +234,7 @@ public class ScoresController : ControllerBase
             });
         }
 
-        if (!string.IsNullOrEmpty(playerInitials) && !IsValidPlayerInitials(playerInitials))
+        if (!string.IsNullOrEmpty(player) && !PlayerInitialsValidator.IsValid(player))
         {
             return BadRequest(new ErrorResponse
             {
@@ -245,9 +245,9 @@ public class ScoresController : ControllerBase
         }
 
         _logger.LogInformation(
-            "Retrieving top {Count} leaderboard entries{PlayerContext}",
+            "Retrieving top {Count} scores{PlayerContext}",
             requestedCount,
-            !string.IsNullOrEmpty(playerInitials) ? $" with player rank for {playerInitials}" : "");
+            !string.IsNullOrEmpty(player) ? $" with player rank for {player}" : "");
 
         try
         {
@@ -258,10 +258,10 @@ public class ScoresController : ControllerBase
 
             object response;
 
-            if (!string.IsNullOrEmpty(playerInitials))
+            if (!string.IsNullOrEmpty(player))
             {
                 // Include player rank in response if specific player requested
-                var playerRank = await _leaderboardService.GetPlayerLeaderboardPositionAsync(playerInitials);
+                var playerRank = await _leaderboardService.GetPlayerLeaderboardPositionAsync(player);
 
                 response = new
                 {
@@ -283,14 +283,14 @@ public class ScoresController : ControllerBase
                 {
                     _logger.LogInformation(
                         "Player {PlayerInitials} is at rank {Rank}",
-                        playerInitials,
+                        player,
                         playerRank.Rank);
                 }
                 else
                 {
                     _logger.LogInformation(
                         "Player {PlayerInitials} not found on leaderboard",
-                        playerInitials);
+                        player);
                 }
             }
             else
@@ -317,8 +317,8 @@ public class ScoresController : ControllerBase
             Response.Headers["X-Cache-Duration"] = "30";
             Response.Headers["X-Processing-Time"] = stopwatch.ElapsedMilliseconds.ToString();
 
-            // Add ETag for cache validation
-            var eTag = GenerateETag(leaderboard.LastUpdated, requestedCount, playerInitials);
+            // Add ETag for cache validation using shared utility
+            var eTag = Po.PoDropSquare.Core.Utilities.ETagGenerator.Generate(leaderboard.LastUpdated, requestedCount, player);
             Response.Headers["ETag"] = eTag;
 
             // Check if client has cached version
@@ -329,7 +329,7 @@ public class ScoresController : ControllerBase
             }
 
             _logger.LogInformation(
-                "Leaderboard retrieved successfully: {Count} entries in {ElapsedMs}ms",
+                "Scores retrieved successfully: {Count} entries in {ElapsedMs}ms",
                 leaderboard.Leaderboard?.Count ?? 0,
                 stopwatch.ElapsedMilliseconds);
 
@@ -338,17 +338,41 @@ public class ScoresController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Error retrieving leaderboard with count {Count}{PlayerContext}",
+                "Error retrieving scores with count {Count}{PlayerContext}",
                 requestedCount,
-                !string.IsNullOrEmpty(playerInitials) ? $" for player {playerInitials}" : "");
+                !string.IsNullOrEmpty(player) ? $" for player {player}" : "");
 
             return StatusCode(500, new ErrorResponse
             {
                 Error = "InternalServerError",
-                Message = "Failed to retrieve leaderboard data",
+                Message = "Failed to retrieve score data",
                 Details = "Please try again later or contact support if the problem persists"
             });
         }
+    }
+
+    /// <summary>
+    /// Legacy endpoint for backward compatibility - redirects to GET /api/scores?top=10
+    /// </summary>
+    [HttpGet("top10")]
+    [Obsolete("Use GET /api/scores?top=10 instead. This endpoint will be removed in v2.0")]
+    [ApiExplorerSettings(IgnoreApi = true)]
+    public async Task<IActionResult> GetTop10Legacy([FromQuery] int? count = null)
+    {
+        return await GetScores(count, null);
+    }
+
+    /// <summary>
+    /// Legacy endpoint for backward compatibility - redirects to GET /api/scores?top=N
+    /// </summary>
+    [HttpGet("leaderboard")]
+    [Obsolete("Use GET /api/scores?top=N instead. This endpoint will be removed in v2.0")]
+    [ApiExplorerSettings(IgnoreApi = true)]
+    public async Task<IActionResult> GetLeaderboardLegacy(
+        [FromQuery] int? count = null,
+        [FromQuery] string? playerInitials = null)
+    {
+        return await GetScores(count, playerInitials);
     }
 
     [HttpGet("player/{playerInitials}/rank")]
@@ -375,36 +399,5 @@ public class ScoresController : ControllerBase
             _logger.LogError(ex, "Error retrieving player rank");
             return StatusCode(500, "Internal server error");
         }
-    }
-
-    /// <summary>
-    /// Validates player initials format
-    /// </summary>
-    /// <param name="playerInitials">Player initials to validate</param>
-    /// <returns>True if valid format</returns>
-    private static bool IsValidPlayerInitials(string playerInitials)
-    {
-        if (string.IsNullOrEmpty(playerInitials))
-            return false;
-
-        if (playerInitials.Length < 1 || playerInitials.Length > 3)
-            return false;
-
-        return playerInitials.All(char.IsLetterOrDigit) && playerInitials.All(char.IsUpper);
-    }
-
-    /// <summary>
-    /// Generates ETag for cache validation
-    /// </summary>
-    /// <param name="lastUpdated">Last updated timestamp</param>
-    /// <param name="count">Requested count</param>
-    /// <param name="playerInitials">Optional player initials</param>
-    /// <returns>ETag string</returns>
-    private static string GenerateETag(string lastUpdated, int count, string? playerInitials)
-    {
-        var content = $"{lastUpdated}-{count}-{playerInitials ?? ""}";
-        using var sha256 = System.Security.Cryptography.SHA256.Create();
-        var hash = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(content));
-        return $"\"{Convert.ToHexString(hash)[..16]}\"";
     }
 }

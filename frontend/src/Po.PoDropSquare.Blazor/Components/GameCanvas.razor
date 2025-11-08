@@ -35,17 +35,6 @@
         </div>
     }
     
-    @if (_isDangerCountdownActive)
-    {
-        <div class="victory-countdown-overlay">
-            <div class="victory-countdown">
-                <div class="victory-title">🏆 VICTORY COUNTDOWN! 🏆</div>
-                <div class="countdown-timer">@_dangerCountdownElapsed.ToString("F1") / 2.0</div>
-                <div class="victory-message">Keep block above red line!</div>
-            </div>
-        </div>
-    }
-    
     <div class="game-controls">
         <div class="control-instructions">
             <p><strong>Controls:</strong></p>
@@ -120,8 +109,8 @@
 
             _physicsInitialized = true;
 
-            // Set up game event callbacks
-            await JSRuntime.InvokeVoidAsync("setGameCallbacks", _dotNetRef);
+            // Set up game event callbacks using PhysicsInteropService
+            await JSRuntime.InvokeVoidAsync("PhysicsInteropService.setupCallbacks", _dotNetRef);
             
             // Start game timer for regular updates
             _gameTimer = new Timer(GameTick, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(16)); // ~60 FPS
@@ -263,6 +252,35 @@
     }
 
     [JSInvokable]
+    public Task OnScoreUpdate(object data)
+    {
+        // JavaScript sends score updates - we can log or handle them here
+        Console.WriteLine($"OnScoreUpdate called with data: {System.Text.Json.JsonSerializer.Serialize(data)}");
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task OnGoalLineCrossed(string blockId)
+    {
+        Console.WriteLine($"Block {blockId} crossed goal line");
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task OnBlockCollision(string blockIdA, string blockIdB)
+    {
+        Console.WriteLine($"Block collision: {blockIdA} and {blockIdB}");
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task OnGameStateChange(string state, object? data = null)
+    {
+        Console.WriteLine($"Game state changed to: {state}");
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
     public async Task OnGoalReached()
     {
         await StopGame();
@@ -311,25 +329,32 @@
     }
 
     [JSInvokable]
-    public async Task OnVictoryAchieved()
+    public async Task OnVictoryAchieved(double survivalTimeSeconds)
     {
         _isDangerCountdownActive = false;
         _dangerCountdownElapsed = 0;
-        Console.WriteLine("🏆 OnVictoryAchieved called in GameCanvas");
+        Console.WriteLine($"🏆 OnVictoryAchieved called in GameCanvas with survivalTime: {survivalTimeSeconds}s");
         
         await InvokeAsync(async () =>
         {
-            Console.WriteLine("🏆 Stopping game and firing GoalReached event");
+            Console.WriteLine($"🏆 Stopping game and firing GoalReached event with survivalTime: {survivalTimeSeconds}s");
             
             // Stop the game WITHOUT firing the GameOver event (we're handling victory separately)
             GameState = GameState.GameOver;
             if (_physicsInitialized)
             {
+                Console.WriteLine("🏆 Invoking JS stopGame from OnVictoryAchieved");
                 await JSRuntime.InvokeVoidAsync("stopGame");
             }
             
-            // Fire the GoalReached event (NOT GameOver)
-            await OnGameEvent.InvokeAsync(new GameEventArgs { EventType = GameEventType.GoalReached, Score = _currentScore });
+            // Fire the GoalReached event with survival time in Data
+            Console.WriteLine($"🏆 Firing GoalReached event with survivalTime: {survivalTimeSeconds}s");
+            await OnGameEvent.InvokeAsync(new GameEventArgs 
+            { 
+                EventType = GameEventType.GoalReached, 
+                Score = _currentScore,
+                Data = survivalTimeSeconds // Pass survival time to Game.razor
+            });
             StateHasChanged();
         });
     }
@@ -344,73 +369,23 @@
         {
             try
             {
+                // Stop the physics engine first
+                await JSRuntime.InvokeVoidAsync("stopGame");
+                await Task.Delay(100); // Give JS time to finish any pending calls
                 await JSRuntime.InvokeVoidAsync("cleanup");
             }
-            catch { /* Ignore disposal errors */ }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Disposal error (expected): {ex.Message}");
+            }
         }
         
+        // Dispose DotNetObjectReference LAST, after JS has finished using it
         _dotNetRef?.Dispose();
     }
 }
 
 <style>
-    .danger-countdown-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(255, 0, 0, 0.1);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-        pointer-events: none;
-        animation: dangerPulse 0.5s ease-in-out infinite alternate;
-    }
-
-    .danger-countdown {
-        background: rgba(255, 0, 0, 0.9);
-        color: white;
-        padding: 2rem;
-        border-radius: 20px;
-        text-align: center;
-        border: 3px solid #fff;
-        box-shadow: 0 0 30px rgba(255, 0, 0, 0.8);
-        animation: shake 0.2s ease-in-out infinite;
-    }
-
-    .danger-title {
-        font-size: 1.5rem;
-        font-weight: bold;
-        margin-bottom: 0.5rem;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-    }
-
-    .countdown-timer {
-        font-size: 3rem;
-        font-weight: bold;
-        margin: 1rem 0;
-        color: #ffff00;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-        font-family: 'Courier New', monospace;
-    }
-
-    .danger-message {
-        font-size: 1.2rem;
-        font-weight: bold;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-    }
-
-    @@keyframes dangerPulse {
-        0% { background: rgba(255, 0, 0, 0.1); }
-        100% { background: rgba(255, 0, 0, 0.3); }
-    }
-
-    @@keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-2px); }
-        75% { transform: translateX(2px); }
-    }
+    /* Removed victory countdown overlay styles - now using blinking goal line */
 </style>
 

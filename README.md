@@ -7,55 +7,74 @@
 [![Azure](https://img.shields.io/badge/Azure-Deployed-0078D4)](https://azure.microsoft.com/)
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-2088FF)](https://github.com/features/actions)
 
-## 🎮 Game Mechanics
+## 🎮 What is PoDropSquare?
 
-- **20-second survival timer** - Build before time runs out
-- **2-second danger countdown** - Race to drop the next block
-- **Physics-based scoring** - Earn points based on tower stability and height
-- **Global leaderboard** - Compete with players worldwide
-- **Three difficulty levels** - Easy, Normal, Hard with different block spawn rates
+PoDropSquare is a modern browser-based physics game that combines quick reflexes with strategic thinking. Players must:
+- **Drop colored squares** to build increasingly tall towers
+- **Beat the clock** with a 20-second survival timer
+- **React quickly** to the 2-second danger countdown between drops
+- **Master physics** - gravity, collisions, and stability matter!
+- **Compete globally** on the Azure-backed leaderboard
 
-## 🚀 Quick Start
+Perfect for quick gaming sessions and competitive play!
+
+## 🚀 Quick Start - Run Locally
 
 ### Prerequisites
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
-- [Azure Developer CLI (azd)](https://aka.ms/azd-install) - For deployment
-- [Node.js](https://nodejs.org/) - For Azurite emulator (local development)
-- Modern browser with WebAssembly support (Chrome, Edge, Firefox, Safari)
 
-### Local Development
+| Requirement | Version | Download |
+|-------------|---------|----------|
+| **.NET SDK** | 9.0+ | [Download](https://dotnet.microsoft.com/download/dotnet/9.0) |
+| **Node.js** | 18+ | [Download](https://nodejs.org/) (for Azurite) |
+| **Azure Developer CLI** | Latest | [Download](https://aka.ms/azd-install) (optional, for deployment) |
 
-1. **Clone and navigate**
-   ```bash
-   git clone <repository-url>
-   cd PoDropSquare
-   ```
+### Option 1: Automated Setup (Recommended)
 
-2. **Start Azure Storage Emulator**
+```powershell
+# 1. Install Azurite (one-time)
+npm install -g azurite
+
+# 2. Start everything (Azurite + API + Browser)
+.\scripts\start-local-dev.ps1
+
+# 3. Stop when done
+.\scripts\stop-local-dev.ps1
+
+# 4. Verify setup anytime
+.\scripts\test-local-setup.ps1
+```
+
+### Option 2: Manual Setup
+
+1. **Start Azurite** (Terminal 1)
    ```powershell
-   # Start Azurite for local Azure Table Storage
-   azurite --silent --location c:\azurite --debug c:\azurite\debug.log
+   azurite --silent --location .
    ```
 
-3. **Build and run API** (hosts Blazor WASM)
-   ```bash
-   dotnet build
+2. **Run Application** (Terminal 2)
+   ```powershell
    dotnet run --project backend/src/Po.PoDropSquare.Api
    ```
-   
-   🌐 Application available at: **http://localhost:5000** (HTTP) or **https://localhost:5001** (HTTPS)
 
-4. **Run tests**
-   ```bash
-   # All tests
-   dotnet test
-   
-   # Specific test projects
-   dotnet test backend/tests/Po.PoDropSquare.Api.Tests/       # API integration tests
-   dotnet test frontend/tests/Po.PoDropSquare.Blazor.Tests/   # Blazor component tests
-   ```
+3. **Open Browser**
+   - 🌐 **App**: http://localhost:5000
+   - 🩺 **Health**: http://localhost:5000/diag
+   - 📖 **API Docs**: http://localhost:5000/swagger
 
-## 🏗️ Project Structure
+### Testing the Application
+
+```bash
+# Run all tests (unit, integration, E2E)
+dotnet test
+
+# Run specific test project
+dotnet test backend/tests/Po.PoDropSquare.Api.Tests/
+
+# Generate code coverage report
+dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
+```
+
+## 📁 Project Structure
 
 ```
 PoDropSquare/
@@ -327,18 +346,17 @@ dotnet test backend/tests/Po.PoDropSquare.E2E.Tests/
 
 | Document | Description |
 |----------|-------------|
-| `PRD.MD` | Product Requirements Document (complete spec) |
-| `STEPS.MD` | 10 high-level implementation steps |
-| `docs/KQL-QUERIES.md` | 31 Application Insights queries |
-| `docs/APPLICATION-INSIGHTS-SETUP.md` | Telemetry setup guide |
-| `docs/PHASE4-SUMMARY.md` | Monitoring implementation summary |
-| `.github/CICD-SETUP.md` | CI/CD pipeline setup guide |
-| `.github/copilot-instructions.md` | AI coding agent rules |
-| `PoDropSquare.http` | REST client manual tests |
+| **[docs/PRD.MD](docs/PRD.MD)** | Product Requirements Document (complete spec) |
+| **STEPS.MD** | 10 high-level implementation steps |
+| **[docs/KQL-QUERIES.md](docs/KQL-QUERIES.md)** | 31 Application Insights queries |
+| **[docs/APPLICATION-INSIGHTS-SETUP.md](docs/APPLICATION-INSIGHTS-SETUP.md)** | Telemetry setup guide |
+| **docs/PHASE1-IMPLEMENTATION-SUMMARY.md** | Phase 1 completion summary |
+| **.github/copilot-instructions.md** | AI coding agent rules |
+| **PoDropSquare.http** | REST client manual tests |
 
 ## 🗺️ Roadmap
 
-See `PRD.MD` for detailed roadmap. Upcoming phases:
+See **[docs/PRD.MD](docs/PRD.MD)** for detailed roadmap. Upcoming phases:
 
 - **Phase 2 (Q2 2025)** - Multiplayer mode, spectator system
 - **Phase 3 (Q3 2025)** - Tournament system, ranked matches

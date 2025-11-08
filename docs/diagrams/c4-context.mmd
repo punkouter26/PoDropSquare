@@ -1,0 +1,45 @@
+%% C4 Context Diagram for PoDropSquare
+%% Shows the system in its environment with external actors and systems
+
+graph TB
+    subgraph "PoDropSquare System Context"
+        Player["👤 Player<br/>(Game User)"]
+        Admin["👨‍💼 Administrator<br/>(DevOps/Monitor)"]
+        
+        PoDropSquare["🎮 PoDropSquare System<br/>(Physics-Based Tower Game)"]
+        
+        Azure["☁️ Azure Cloud Platform<br/>(Infrastructure)"]
+        AppInsights["📊 Application Insights<br/>(Telemetry & Monitoring)"]
+        TableStorage["💾 Azure Table Storage<br/>(Leaderboard Persistence)"]
+        LogAnalytics["📝 Log Analytics<br/>(Centralized Logging)"]
+        GitHub["🔄 GitHub<br/>(Source Control & CI/CD)"]
+        Browser["🌐 Modern Web Browser<br/>(Client Platform)"]
+    end
+    
+    Player -->|"Plays game,<br/>views leaderboard"| PoDropSquare
+    Player -->|"Uses"| Browser
+    Browser -->|"Runs"| PoDropSquare
+    
+    Admin -->|"Monitors metrics,<br/>views logs"| AppInsights
+    Admin -->|"Deploys via<br/>GitHub Actions"| GitHub
+    
+    PoDropSquare -->|"Stores scores,<br/>retrieves leaderboard"| TableStorage
+    PoDropSquare -->|"Sends telemetry,<br/>custom metrics"| AppInsights
+    PoDropSquare -->|"Writes structured<br/>logs"| LogAnalytics
+    
+    GitHub -->|"Provisions resources,<br/>deploys application"| Azure
+    
+    Azure -.->|"Hosts"| TableStorage
+    Azure -.->|"Hosts"| AppInsights
+    Azure -.->|"Hosts"| LogAnalytics
+    Azure -.->|"Hosts"| PoDropSquare
+    
+    style PoDropSquare fill:#512BD4,stroke:#333,stroke-width:4px,color:#fff
+    style Player fill:#4CAF50,stroke:#333,stroke-width:2px,color:#fff
+    style Admin fill:#FF9800,stroke:#333,stroke-width:2px,color:#fff
+    style Azure fill:#0078D4,stroke:#333,stroke-width:2px,color:#fff
+    style AppInsights fill:#FF6B6B,stroke:#333,stroke-width:2px,color:#fff
+    style TableStorage fill:#FFD93D,stroke:#333,stroke-width:2px,color:#000
+    style LogAnalytics fill:#6BCB77,stroke:#333,stroke-width:2px,color:#fff
+    style GitHub fill:#24292E,stroke:#333,stroke-width:2px,color:#fff
+    style Browser fill:#E8F5E9,stroke:#333,stroke-width:2px,color:#000

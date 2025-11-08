@@ -1,0 +1,25 @@
+%% Simplified C4 Container Diagram for PoDropSquare
+%% Shows only the main technology containers
+
+graph TB
+    Player["👤 Player"]
+    
+    subgraph "Browser"
+        Blazor["⚡ Blazor WASM<br/>(Frontend)"]
+    end
+    
+    subgraph "Azure"
+        API["🔌 ASP.NET API<br/>(Backend)"]
+        Storage["💾 Table Storage<br/>(Database)"]
+        Monitor["📊 App Insights<br/>(Monitoring)"]
+    end
+    
+    Player -->|"Plays"| Blazor
+    Blazor -->|"REST API"| API
+    API -->|"Stores data"| Storage
+    API -->|"Telemetry"| Monitor
+    Blazor -->|"Client metrics"| Monitor
+    
+    style Blazor fill:#512BD4,stroke:#333,stroke-width:3px,color:#fff
+    style API fill:#0078D4,stroke:#333,stroke-width:3px,color:#fff
+    style Storage fill:#FFD93D,stroke:#333,stroke-width:2px,color:#000

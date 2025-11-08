@@ -139,26 +139,6 @@
                     </button>
                 }
             </div>
-
-            <div class="secondary-actions">
-                <button class="action-btn tertiary" @onclick="OnViewLeaderboardClicked">
-                    <span class="btn-icon">🏆</span>
-                    <span class="btn-text">Leaderboard</span>
-                </button>
-
-                <button class="action-btn tertiary" @onclick="OnShareScoreClicked">
-                    <span class="btn-icon">📤</span>
-                    <span class="btn-text">Share</span>
-                </button>
-
-                @if (ShowMainMenu)
-                {
-                    <button class="action-btn tertiary" @onclick="OnMainMenuClicked">
-                        <span class="btn-icon">🏠</span>
-                        <span class="btn-text">Main Menu</span>
-                    </button>
-                }
-            </div>
         </div>
 
         @if (ShowTips && GameTips?.Any() == true)
@@ -204,15 +184,11 @@
     [Parameter] public int? PersonalBest { get; set; }
     [Parameter] public bool ShowSaveScore { get; set; } = true;
     [Parameter] public bool ScoreAlreadySaved { get; set; } = false;
-    [Parameter] public bool ShowMainMenu { get; set; } = true;
     [Parameter] public bool ShowTips { get; set; } = true;
     [Parameter] public bool ShowBackground { get; set; } = true;
     [Parameter] public List<string>? GameTips { get; set; }
     [Parameter] public EventCallback OnPlayAgain { get; set; }
     [Parameter] public EventCallback OnSaveScore { get; set; }
-    [Parameter] public EventCallback OnViewLeaderboard { get; set; }
-    [Parameter] public EventCallback OnShareScore { get; set; }
-    [Parameter] public EventCallback OnMainMenu { get; set; }
 
     protected override void OnInitialized()
     {
@@ -234,21 +210,6 @@
     private async Task OnSaveScoreClicked()
     {
         await OnSaveScore.InvokeAsync();
-    }
-
-    private async Task OnViewLeaderboardClicked()
-    {
-        await OnViewLeaderboard.InvokeAsync();
-    }
-
-    private async Task OnShareScoreClicked()
-    {
-        await OnShareScore.InvokeAsync();
-    }
-
-    private async Task OnMainMenuClicked()
-    {
-        await OnMainMenu.InvokeAsync();
     }
 
     private string FormatDuration(TimeSpan duration)

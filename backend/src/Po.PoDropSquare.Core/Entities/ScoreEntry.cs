@@ -135,7 +135,8 @@ public class ScoreEntry : ITableEntity
         if (!PlayerInitials.All(char.IsLetterOrDigit))
             return Contracts.ValidationResult.Invalid("Player initials must be alphanumeric");
 
-        if (!PlayerInitials.All(char.IsUpper))
+        // All letters must be uppercase (digits are allowed and don't need to be "uppercase")
+        if (PlayerInitials.Any(c => char.IsLetter(c) && !char.IsUpper(c)))
             return Contracts.ValidationResult.Invalid("Player initials must be uppercase");
 
         // Validate survival time

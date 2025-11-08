@@ -56,28 +56,16 @@
                         
                         <div class="player-info">
                             <div class="player-name">
-                                @entry.PlayerName
+                                @entry.PlayerInitials
                                 @if (entry.IsCurrentPlayer)
                                 {
-                                    <span class="current-indicator">(You)</span>
+                                    <span class="current-indicator">(YOU)</span>
                                 }
                             </div>
-                            
-                            @if (!IsCompact)
-                            {
-                                <div class="game-details">
-                                    <span class="game-time">⏱️ @FormatDuration(entry.GameDuration)</span>
-                                    <span class="achieved-date">📅 @FormatDate(entry.AchievedAt)</span>
-                                </div>
-                            }
                         </div>
                         
                         <div class="score">
-                            <span class="score-value">@entry.Score.ToString("N0")</span>
-                            @if (!IsCompact)
-                            {
-                                <span class="score-label">points</span>
-                            }
+                            <span class="score-value">@entry.SurvivalTime.ToString("0.00") s</span>
                         </div>
                     </div>
                 }
@@ -399,9 +387,23 @@
         background: rgba(255, 255, 255, 0.05);
         border-radius: 8px;
         border: 1px solid transparent;
-        transition: all 0.3s ease;
+        transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         cursor: pointer;
+        position: relative;
+        animation: fadeInUp 0.4s ease-out backwards;
     }
+
+    /* Staggered animation delays for each entry */
+    .leaderboard-entry:nth-child(1) { animation-delay: 0.05s; }
+    .leaderboard-entry:nth-child(2) { animation-delay: 0.1s; }
+    .leaderboard-entry:nth-child(3) { animation-delay: 0.15s; }
+    .leaderboard-entry:nth-child(4) { animation-delay: 0.2s; }
+    .leaderboard-entry:nth-child(5) { animation-delay: 0.25s; }
+    .leaderboard-entry:nth-child(6) { animation-delay: 0.3s; }
+    .leaderboard-entry:nth-child(7) { animation-delay: 0.35s; }
+    .leaderboard-entry:nth-child(8) { animation-delay: 0.4s; }
+    .leaderboard-entry:nth-child(9) { animation-delay: 0.45s; }
+    .leaderboard-entry:nth-child(10) { animation-delay: 0.5s; }
 
     .leaderboard-entry:hover {
         background: rgba(255, 255, 255, 0.1);
@@ -441,6 +443,19 @@
     .medal {
         font-size: 1.5rem;
         filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    }
+
+    /* Animated medal glows for top 3 */
+    .first-place .medal {
+        animation: goldGlow 2s ease-in-out infinite;
+    }
+
+    .second-place .medal {
+        animation: silverGlow 2s ease-in-out infinite;
+    }
+
+    .third-place .medal {
+        animation: bronzeGlow 2s ease-in-out infinite;
     }
 
     .rank-number {
@@ -540,13 +555,54 @@
         font-size: 1.2rem;
     }
 
-    
+    /* Keyframe Animations */
+    @@keyframes spin {
         100% { transform: rotate(360deg); }
     }
 
+    @@keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@keyframes goldGlow {
+        0%, 100% { 
+            filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5)); 
+        }
+        50% { 
+            filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.8)) 
+                    drop-shadow(0 0 25px rgba(255, 215, 0, 0.6)); 
+        }
+    }
+
+    @@keyframes silverGlow {
+        0%, 100% { 
+            filter: drop-shadow(0 0 5px rgba(192, 192, 192, 0.5)); 
+        }
+        50% { 
+            filter: drop-shadow(0 0 15px rgba(192, 192, 192, 0.8))
+                    drop-shadow(0 0 25px rgba(192, 192, 192, 0.6)); 
+        }
+    }
+
+    @@keyframes bronzeGlow {
+        0%, 100% { 
+            filter: drop-shadow(0 0 5px rgba(205, 127, 50, 0.5)); 
+        }
+        50% { 
+            filter: drop-shadow(0 0 15px rgba(205, 127, 50, 0.8))
+                    drop-shadow(0 0 25px rgba(205, 127, 50, 0.6)); 
+        }
+    }
+
     /* Responsive design */
-    
-        
+    @@media (max-width: 640px) {
         .leaderboard-entry {
             padding: 0.5rem;
         }

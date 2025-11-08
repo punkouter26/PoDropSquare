@@ -22,6 +22,8 @@ public class ScoreSubmissionContractTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
+    [Trait("Feature", "ScoreSubmission")]
     public async Task POST_Scores_WithValidRequest_ShouldReturn200AndScoreAccepted()
     {
         // Arrange
@@ -54,6 +56,12 @@ public class ScoreSubmissionContractTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "ScoreSubmissionContract")]
     public async Task POST_Scores_WithNewHighScore_ShouldReturn201()
     {
         // Arrange
@@ -147,6 +155,12 @@ public class ScoreSubmissionContractTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "ScoreSubmissionContract")]
     public async Task POST_Scores_WithMissingSessionSignature_ShouldReturn400()
     {
         // Arrange
@@ -175,6 +189,12 @@ public class ScoreSubmissionContractTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "ScoreSubmissionContract")]
     public async Task POST_Scores_WithOldTimestamp_ShouldReturn400()
     {
         // Arrange
@@ -206,6 +226,12 @@ public class ScoreSubmissionContractTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "ScoreSubmissionContract")]
     public async Task POST_Scores_WithInvalidJson_ShouldReturn400()
     {
         // Arrange
@@ -220,6 +246,12 @@ public class ScoreSubmissionContractTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "ScoreSubmissionContract")]
     public async Task POST_Scores_WithMissingContentType_ShouldReturn415()
     {
         // Arrange
@@ -241,6 +273,12 @@ public class ScoreSubmissionContractTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "ScoreSubmissionContract")]
     public async Task POST_Scores_RateLimited_ShouldReturn429()
     {
         // Arrange - Submit multiple requests rapidly to trigger rate limiting
@@ -290,6 +328,12 @@ public class ScoreSubmissionContractTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "ScoreSubmissionContract")]
     public void CleanupResources()
     {
         Dispose(true);

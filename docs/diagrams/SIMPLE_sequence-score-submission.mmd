@@ -1,0 +1,25 @@
+%% Simplified Sequence Diagram: Score Submission
+%% Shows just the main flow without detailed observability
+
+sequenceDiagram
+    autonumber
+    participant Player
+    participant Frontend as Blazor App
+    participant API as API Backend
+    participant DB as Database
+    
+    Player->>Frontend: Play game
+    Frontend->>Frontend: Calculate score
+    
+    Player->>Frontend: Submit score
+    Frontend->>API: POST /api/scores
+    activate API
+    
+    API->>DB: Save score
+    activate DB
+    DB-->>API: Success
+    deactivate DB
+    
+    API-->>Frontend: Score saved (Rank #5)
+    deactivate API
+    Frontend-->>Player: "Rank #5!"

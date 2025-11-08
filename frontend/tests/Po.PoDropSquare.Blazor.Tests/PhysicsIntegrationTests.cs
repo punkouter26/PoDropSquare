@@ -12,6 +12,10 @@ namespace Po.PoDropSquare.Blazor.Tests;
 public class PhysicsIntegrationTests : TestContext
 {
     [Fact]
+
+    [Trait("Category", "Component")]
+
+    [Trait("Feature", "PhysicsIntegration")]
     public async Task PhysicsEngine_ShouldInitializeCorrectly()
     {
         // Arrange: Render game component
@@ -23,6 +27,12 @@ public class PhysicsIntegrationTests : TestContext
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "PhysicsIntegration")]
     public async Task BlockCollision_ShouldBeDetected()
     {
         var cut = RenderComponent<GameBoard>();
@@ -35,6 +45,12 @@ public class PhysicsIntegrationTests : TestContext
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "PhysicsIntegration")]
     public async Task PhysicsSimulation_ShouldBeDeterministic()
     {
         var cut = RenderComponent<GameBoard>();
@@ -50,6 +66,12 @@ public class PhysicsIntegrationTests : TestContext
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "PhysicsIntegration")]
     public async Task PhysicsEngine_ShouldHandleEdgeCases()
     {
         var cut = RenderComponent<GameBoard>();
@@ -61,6 +83,12 @@ public class PhysicsIntegrationTests : TestContext
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "PhysicsIntegration")]
     public async Task PhysicsPerformance_ShouldMeetFrameBudget()
     {
         var cut = RenderComponent<GameBoard>();

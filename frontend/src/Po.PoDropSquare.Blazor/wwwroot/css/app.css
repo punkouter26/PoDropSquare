@@ -6,6 +6,9 @@ html, body {
     margin: 0;
     padding: 0;
     overflow-x: hidden;
+    /* Use dynamic viewport height for mobile browsers */
+    min-height: 100vh;
+    min-height: 100dvh;
 }
 
 /* Reset default styles */
@@ -85,6 +88,7 @@ h1:focus {
     background-color: #000000;
     color: #00FF00;
     min-height: 100vh;
+    min-height: 100dvh;
     padding: 10px;
 }
 
@@ -407,6 +411,7 @@ tr:hover {
     background-color: #000000;
     color: #00FF00;
     min-height: 100vh;
+    min-height: 100dvh;
     padding: 20px;
 }
 

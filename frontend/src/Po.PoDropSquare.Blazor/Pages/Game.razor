@@ -1,8 +1,10 @@
 @page "/game"
 @using Po.PoDropSquare.Blazor.Models
 @using Po.PoDropSquare.Blazor.Components
+@using System.Net.Http.Json
 @inject IJSRuntime JSRuntime
 @inject NavigationManager Navigation
+@inject HttpClient Http
 
 <PageTitle>PoDropSquare</PageTitle>
 
@@ -32,48 +34,72 @@
             </div>
         </div>
 
-        <div class="game-canvas-container">
-            <GameCanvas 
-                CanvasId="mainGameCanvas"
-                CanvasWidth="300"
-                CanvasHeight="200"
-                OnGameEvent="OnGameEvent"
-                OnScoreChanged="OnScoreChanged"
-                OnGameStateChanged="OnGameStateChanged"
-                @ref="_gameCanvasRef" />
+        <!-- Real-time Progress Visualization -->
+        @if (_gameState == GameState.Playing)
+        {
+            <div class="progress-indicators">
+                <!-- Stability Meter -->
+                <div class="stability-meter">
+                    <div class="meter-label">STABILITY</div>
+                    <div class="meter-bar">
+                        <div class="meter-fill @GetStabilityClass()" 
+                             style="width: @(_stabilityPercent)%">
+                        </div>
+                    </div>
+                    <div class="meter-value">@_stabilityPercent%</div>
+                </div>
                 
-            @if (_gameState == GameState.NotStarted || _gameState == GameState.GameOver)
+                <!-- Victory Progress Ring -->
+                @if (_isNearVictory)
+                {
+                    <div class="victory-progress">
+                        <svg class="victory-ring" viewBox="0 0 100 100">
+                            <circle class="ring-bg" cx="50" cy="50" r="45"/>
+                            <circle class="ring-progress" cx="50" cy="50" r="45"
+                                    style="stroke-dashoffset: @GetProgressDashOffset()"/>
+                        </svg>
+                        <div class="victory-label">HOLD!</div>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="game-canvas-container">
+            @if (_gameState != GameState.GameOver || !_showGameOverScreen)
+            {
+                <GameCanvas 
+                    CanvasId="mainGameCanvas"
+                    CanvasWidth="300"
+                    CanvasHeight="200"
+                    OnGameEvent="OnGameEvent"
+                    OnScoreChanged="OnScoreChanged"
+                    OnGameStateChanged="OnGameStateChanged"
+                    @ref="_gameCanvasRef" />
+            }
+                
+            @if (_gameState == GameState.NotStarted)
             {
                 <div class="game-overlay">
                     <div class="overlay-content">
-                        @if (_gameState == GameState.NotStarted)
-                        {
-                            <h2>Click to Start</h2>
-                            <p>Drop blocks by clicking</p>
-                        }
-                        else if (_showGameOverScreen)
-                        {
-                            @if (_isVictory)
-                            {
-                                <h2>🏆 Victory! 🏆</h2>
-                                <p>You held a block above the red line for 2 seconds!</p>
-                                <p>Score: @_finalScore</p>
-                                <p>Time: @FormatTime(_finalGameTime ?? TimeSpan.Zero)</p>
-                                <button class="restart-btn" @onclick="RestartGame">Play Again</button>
-                            }
-                            else
-                            {
-                                <h2>Game Over</h2>
-                                <p>Score: @_finalScore</p>
-                                <p>Time: @FormatTime(_finalGameTime ?? TimeSpan.Zero)</p>
-                                <button class="restart-btn" @onclick="RestartGame">Play Again</button>
-                            }
-                        }
+                        <h2>Click to Start</h2>
+                        <p>Drop blocks by clicking</p>
                     </div>
                 </div>
             }
         </div>
     </div>
+    
+    <!-- Score Submission Modal -->
+    <ScoreSubmissionModal 
+        IsVisible="_showGameOverScreen"
+        Score="_currentScore"
+        SurvivalTime="_survivalTimeSeconds"
+        GameDuration="_finalGameTime"
+        IsNewHighScore="_isVictory"
+        AllowClose="false"
+        AllowSkip="false"
+        OnPlayAgain="RestartGame"
+        OnViewLeaderboard="NavigateToLeaderboard" />
 </div>
 
 @code {
@@ -93,6 +119,12 @@
     private bool _isVictory = false;
     private int _finalScore = 0;
     private TimeSpan? _finalGameTime;
+    private double _survivalTimeSeconds = 0; // Time from start to victory in seconds
+    
+    // Progress visualization state
+    private int _stabilityPercent = 100;
+    private bool _isNearVictory = false;
+    private double _victoryProgress = 0; // 0-1 for 2-second hold progress
     
     // Configuration - Simplified
     private TimerConfig _timerConfig = new() { TotalSeconds = 300 }; // 5 minutes
@@ -154,17 +186,28 @@
         switch (args.EventType)
         {
             case GameEventType.BlockLanded:
+                Console.WriteLine($"GameEvent: BlockLanded at {DateTime.UtcNow:o}");
                 _blocksPlaced++;
                 // Update score immediately when block is placed
                 var currentSeconds = (int)_currentGameTime.TotalSeconds;
                 _currentScore = _blocksPlaced * Math.Max(1, currentSeconds);
+                // Update stability visualization
+                UpdateStability();
                 break;
                 
             case GameEventType.GameOver:
+                Console.WriteLine($"GameEvent: GameOver received at {DateTime.UtcNow:o}");
                 await EndGame();
                 break;
                 
             case GameEventType.GoalReached:
+                Console.WriteLine($"GameEvent: GoalReached received at {DateTime.UtcNow:o} - triggering victory flow");
+                // Extract survival time from event data
+                if (args.Data is double survivalTime)
+                {
+                    _survivalTimeSeconds = survivalTime;
+                    Console.WriteLine($"Survival time: {_survivalTimeSeconds}s");
+                }
                 await EndGameWithVictory();
                 break;
         }
@@ -205,24 +248,158 @@
 
     private async Task EndGameWithVictory()
     {
+        Console.WriteLine($"EndGameWithVictory invoked at {DateTime.UtcNow:o} with survivalTime {_survivalTimeSeconds}s");
         _finalScore = _currentScore;
         _finalGameTime = _currentGameTime;
         _gameState = GameState.GameOver;
-        _showGameOverScreen = true;
         _isVictory = true;
         
         _timerRef?.StopTimer();
         
         if (_gameCanvasRef != null)
         {
+            Console.WriteLine("Stopping GameCanvas from victory handler");
             await _gameCanvasRef.StopGame();
+        }
+        
+        // Check if player qualified for top 10
+        bool qualifiedForTop10 = await CheckTop10Qualification(_survivalTimeSeconds);
+        
+        if (qualifiedForTop10)
+        {
+            Console.WriteLine($"✅ Player QUALIFIED for top 10 with time {_survivalTimeSeconds}s - showing score submission modal");
+            _showGameOverScreen = true; // Show the score submission modal
+        }
+        else
+        {
+            Console.WriteLine($"❌ Player did NOT qualify for top 10 with time {_survivalTimeSeconds}s - returning to main menu");
+            _showGameOverScreen = false;
+            // Wait a moment to show victory feedback, then return to home
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(2000); // Show "Victory!" message briefly
+            Navigation.NavigateTo("/");
+            return;
         }
         
         await InvokeAsync(StateHasChanged);
     }
 
+    private async Task<bool> CheckTop10Qualification(double survivalTimeSeconds)
+    {
+        try
+        {
+            Console.WriteLine($"🔍 Checking top 10 qualification for time: {survivalTimeSeconds}s");
+            
+            // Call API to get current top 10 leaderboard
+            var response = await Http.GetAsync("/api/scores/top10");
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"⚠️ Failed to fetch leaderboard: {response.StatusCode}");
+                // If we can't fetch leaderboard, allow submission (fail open)
+                return true;
+            }
+            
+            var leaderboardData = await response.Content.ReadFromJsonAsync<LeaderboardApiResponse>();
+            
+            if (leaderboardData?.Leaderboard == null || leaderboardData.Leaderboard.Count == 0)
+            {
+                Console.WriteLine("✅ Leaderboard is empty - player qualifies!");
+                return true;
+            }
+            
+            // If less than 10 entries, player automatically qualifies
+            if (leaderboardData.Leaderboard.Count < 10)
+            {
+                Console.WriteLine($"✅ Leaderboard has {leaderboardData.Leaderboard.Count} entries - player qualifies!");
+                return true;
+            }
+            
+            // Check if player's time is faster (LOWER) than 10th place
+            var tenthPlaceTime = leaderboardData.Leaderboard[9].SurvivalTime;
+            bool qualifies = survivalTimeSeconds < tenthPlaceTime;
+            
+            Console.WriteLine($"🏁 10th place time: {tenthPlaceTime}s, Player time: {survivalTimeSeconds}s, Qualifies: {qualifies}");
+            
+            return qualifies;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error checking top 10 qualification: {ex.Message}");
+            // If error, allow submission (fail open)
+            return true;
+        }
+    }
+
+    // DTO for API response
+    private class LeaderboardApiResponse
+    {
+        public bool Success { get; set; }
+        public List<LeaderboardEntryDto> Leaderboard { get; set; } = new();
+    }
+
+    private class LeaderboardEntryDto
+    {
+        public int Rank { get; set; }
+        public string PlayerInitials { get; set; } = string.Empty;
+        public double SurvivalTime { get; set; }
+    }
+
     private string FormatTime(TimeSpan time)
     {
         return $"{time.Minutes:D2}:{time.Seconds:D2}";
+    }
+
+    private void NavigateToLeaderboard()
+    {
+        Navigation.NavigateTo("/highscores");
+    }
+
+    // Progress visualization helper methods
+    private string GetStabilityClass()
+    {
+        // Calculate stability based on block placement rate and tower height
+        // For now, use a simple heuristic
+        if (_stabilityPercent > 70)
+            return "stable";
+        else if (_stabilityPercent > 40)
+            return "moderate";
+        else
+            return "unstable";
+    }
+
+    private double GetProgressDashOffset()
+    {
+        // SVG circle has circumference = 2πr = 2π(45) ≈ 283
+        var circumference = 2 * Math.PI * 45;
+        var progress = _victoryProgress; // 0 to 1
+        return circumference * (1 - progress);
+    }
+
+    private void UpdateStability()
+    {
+        // Simple stability calculation - would integrate with physics engine in production
+        if (_blocksPlaced < 3)
+        {
+            _stabilityPercent = 100;
+        }
+        else
+        {
+            // Decrease stability as more blocks are placed (simplified)
+            _stabilityPercent = Math.Max(20, 100 - (_blocksPlaced * 3));
+        }
+        
+        // Check if near victory condition (block above red line)
+        _isNearVictory = _blocksPlaced > 5 && _stabilityPercent > 50;
+        
+        // Simulate victory progress (would come from actual game state)
+        if (_isNearVictory)
+        {
+            _victoryProgress = Math.Min(1.0, _victoryProgress + 0.1);
+        }
+        else
+        {
+            _victoryProgress = 0;
+        }
     }
 }

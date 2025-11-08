@@ -19,6 +19,10 @@ let dangerCountdownActive = false;
 let dangerCountdownStartTime = null;
 let lastDangerCheck = 0;
 let dangerCountdownInterval = null;
+let lastBlinkTime = 0; // Track last blink time for goal line
+
+// Game timing state
+let gameStartTime = null; // Track when game started
 
 let performanceStats = {
     fps: 60,
@@ -118,7 +122,9 @@ window.initializePhysics = function(canvasId, callbacks) {
         startPhysicsLoop();
         
         isRunning = true;
+        gameStartTime = Date.now(); // Record game start time for victory timing
         console.log('Physics engine initialized successfully with enhanced features');
+        console.log('Game started at:', new Date(gameStartTime).toISOString());
         
         // Notify game state change
         if (window.PhysicsInteropService && window.PhysicsInteropService.dotNetReference) {
@@ -216,10 +222,8 @@ function setupCollisionDetection() {
         performanceStats.frameTime = currentTime - performanceStats.lastFrameTime;
         performanceStats.frameCount++;
         
-        // Check danger countdown every few frames to avoid performance issues
-        if (performanceStats.frameCount % 30 === 0) { // Check every 30 frames (~0.5 seconds)
-            checkDangerCountdown();
-        }
+        // Check danger countdown EVERY frame for accurate victory detection
+        checkDangerCountdown();
         
         // Calculate FPS every 60 frames
         if (performanceStats.frameCount % 60 === 0) {
@@ -253,17 +257,18 @@ function startPhysicsLoop() {
     const targetDelta = 1000 / PHYSICS_CONFIG.targetFPS; // 16.67ms for 60 FPS
     
     function physicsStep(currentTime) {
-        if (!isRunning) return;
-        
-        const deltaTime = currentTime - lastTime;
-        
-        if (deltaTime >= targetDelta) {
-            // Update the engine
-            Matter.Engine.update(engine, targetDelta);
-            lastTime = currentTime - (deltaTime % targetDelta);
+        // Always continue the loop, but only update physics when running
+        if (isRunning) {
+            const deltaTime = currentTime - lastTime;
+            
+            if (deltaTime >= targetDelta) {
+                // Update the engine
+                Matter.Engine.update(engine, targetDelta);
+                lastTime = currentTime - (deltaTime % targetDelta);
+            }
         }
         
-        // Continue the loop
+        // Always continue the loop (even when paused)
         requestAnimationFrame(physicsStep);
     }
     
@@ -441,15 +446,15 @@ function checkDangerCountdown() {
         return topEdgeY <= PHYSICS_CONFIG.goalLineY;
     });
     
-    // ALWAYS log block positions for debugging
-    const blockInfo = gameBlocks.map(b => ({
-        id: b.blockId,
-        y: Math.round(b.position.y),
-        topY: Math.round(b.position.y - halfBlockSize),
-        above: (b.position.y - halfBlockSize) <= PHYSICS_CONFIG.goalLineY
-    }));
-    
-    if (gameBlocks.length > 0) {
+    // Only log periodically to avoid console spam (every 60 frames = ~1 second)
+    if (gameBlocks.length > 0 && performanceStats.frameCount % 60 === 0) {
+        const blockInfo = gameBlocks.map(b => ({
+            id: b.blockId,
+            y: Math.round(b.position.y),
+            topY: Math.round(b.position.y - halfBlockSize),
+            above: (b.position.y - halfBlockSize) <= PHYSICS_CONFIG.goalLineY
+        }));
+        
         console.log('🔍 Victory check - Total blocks:', gameBlocks.length, 
                     'Above line:', blockInfo.filter(b => b.above).length,
                     'Goal line Y:', PHYSICS_CONFIG.goalLineY,
@@ -457,11 +462,19 @@ function checkDangerCountdown() {
     }
     
     if (blocksAboveLine) {
+        // Make the goal line blink (toggle between red and dark red every 300ms)
+        if (!dangerCountdownActive || (now - lastBlinkTime) > 300) {
+            lastBlinkTime = now;
+            if (goalLine) {
+                goalLine.render.fillStyle = goalLine.render.fillStyle === '#ff4757' ? '#8b0000' : '#ff4757';
+            }
+        }
+        
         if (!dangerCountdownActive) {
             // Start danger countdown
             dangerCountdownActive = true;
             dangerCountdownStartTime = now;
-            console.log('Danger countdown started!');
+            console.log('🚨 Danger countdown started!');
             
             // Notify Blazor about countdown start
             if (window.PhysicsInteropService && window.PhysicsInteropService.dotNetReference) {
@@ -484,15 +497,44 @@ function checkDangerCountdown() {
                     clearInterval(dangerCountdownInterval);
                     dangerCountdownInterval = null;
                     dangerCountdownActive = false;
-                    console.log('Victory! Block held high for 2 seconds!');
+                    
+                    // Calculate survival time (time from game start to victory)
+                    const victoryTime = Date.now();
+                    const survivalTimeMs = victoryTime - gameStartTime;
+                    const survivalTimeSeconds = (survivalTimeMs / 1000).toFixed(2); // 2 decimal places
+                    
+                    console.log('🏆 VICTORY! Block held high for 2 seconds!');
+                    console.log(`⏱️ Survival Time: ${survivalTimeSeconds} seconds (${survivalTimeMs}ms)`);
+                    
+                    console.log('🔍 Checking PhysicsInteropService...', {
+                        exists: !!window.PhysicsInteropService,
+                        hasReference: !!(window.PhysicsInteropService && window.PhysicsInteropService.dotNetReference)
+                    });
                     
                     if (window.PhysicsInteropService && window.PhysicsInteropService.dotNetReference) {
-                        window.PhysicsInteropService.OnVictoryAchieved();
+                        console.log(`✅ Calling OnVictoryAchieved with survivalTime: ${survivalTimeSeconds}s...`);
+                        try {
+                            // Pass survival time to C#
+                            window.PhysicsInteropService.OnVictoryAchieved(parseFloat(survivalTimeSeconds));
+                            console.log('✅ OnVictoryAchieved called successfully');
+                        } catch (error) {
+                            console.error('❌ Error calling OnVictoryAchieved:', error);
+                        }
+                    } else {
+                        console.error('❌ PhysicsInteropService or dotNetReference is null!', {
+                            physicsInteropService: window.PhysicsInteropService,
+                            dotNetReference: window.PhysicsInteropService ? window.PhysicsInteropService.dotNetReference : null
+                        });
                     }
                 }
             }, 100); // Update every 100ms for smooth countdown
         }
     } else {
+        // Reset goal line color when no blocks above
+        if (goalLine) {
+            goalLine.render.fillStyle = '#ff4757';
+        }
+        
         if (dangerCountdownActive) {
             // All blocks are below line - cancel countdown
             dangerCountdownActive = false;
@@ -501,7 +543,7 @@ function checkDangerCountdown() {
                 clearInterval(dangerCountdownInterval);
                 dangerCountdownInterval = null;
             }
-            console.log('Danger countdown cancelled - blocks below line');
+            console.log('❌ Danger countdown cancelled - blocks below line');
             
             // Notify Blazor about countdown cancellation
             if (window.PhysicsInteropService && window.PhysicsInteropService.dotNetReference) {
@@ -700,7 +742,10 @@ window.PhysicsInteropService = {
     
     setupCallbacks: function(dotNetRef) {
         this.dotNetReference = dotNetRef;
-        console.log('Blazor callbacks setup completed');
+        console.log('✅ Blazor callbacks setup completed', {
+            hasReference: !!dotNetRef,
+            referenceType: typeof dotNetRef
+        });
     },
     
     OnGoalLineCrossed: function(blockId) {
@@ -751,11 +796,21 @@ window.PhysicsInteropService = {
         }
     },
     
-    OnVictoryAchieved: function() {
-        console.log('🔥 JavaScript OnVictoryAchieved function called');
+    OnVictoryAchieved: function(survivalTimeSeconds) {
+        console.log('🔥 JavaScript OnVictoryAchieved function called with survivalTime:', survivalTimeSeconds);
         if (this.dotNetReference) {
             console.log('🔥 Calling C# OnVictoryAchieved via invokeMethodAsync');
-            this.dotNetReference.invokeMethodAsync('OnVictoryAchieved');
+            try {
+                this.dotNetReference.invokeMethodAsync('OnVictoryAchieved', survivalTimeSeconds)
+                    .then(() => {
+                        console.log('✅ C# OnVictoryAchieved completed successfully');
+                    })
+                    .catch(error => {
+                        console.error('❌ C# OnVictoryAchieved failed:', error);
+                    });
+            } catch (error) {
+                console.error('❌ Error invoking OnVictoryAchieved:', error);
+            }
         } else {
             console.error('🔥 ERROR: dotNetReference is null! Cannot call C# method');
         }

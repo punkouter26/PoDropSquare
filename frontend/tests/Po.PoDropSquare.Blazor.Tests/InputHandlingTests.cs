@@ -38,6 +38,12 @@ public class InputHandlingTests : TestContext, IDisposable
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "InputHandling")]
     public void TouchInput_OnMobile_ShouldCreateBlock()
     {
         // Arrange: Set up mobile environment simulation
@@ -70,6 +76,12 @@ public class InputHandlingTests : TestContext, IDisposable
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "InputHandling")]
     public void MouseInput_OnDesktop_ShouldCreateBlock()
     {
         // Arrange: Set up desktop environment simulation
@@ -100,6 +112,12 @@ public class InputHandlingTests : TestContext, IDisposable
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "InputHandling")]
     public void KeyboardInput_SpaceBar_ShouldCreateBlock()
     {
         // Arrange: Set up keyboard input handling
@@ -126,6 +144,12 @@ public class InputHandlingTests : TestContext, IDisposable
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "InputHandling")]
     public void MultiTouchGestures_ShouldHandleSimultaneousInputs()
     {
         // Arrange: Set up multi-touch simulation
@@ -157,6 +181,12 @@ public class InputHandlingTests : TestContext, IDisposable
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "InputHandling")]
     public void InputLatency_ShouldBeBelowThreshold()
     {
         // Arrange: Set up latency measurement
@@ -184,6 +214,12 @@ public class InputHandlingTests : TestContext, IDisposable
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "InputHandling")]
     public void TouchInput_WithInvalidCoordinates_ShouldBeRejected()
     {
         // Arrange: Set up touch input validation
@@ -211,6 +247,12 @@ public class InputHandlingTests : TestContext, IDisposable
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "InputHandling")]
     public void SwipeGestures_ShouldRotateBlocks()
     {
         // Arrange: Set up swipe gesture detection
@@ -238,6 +280,12 @@ public class InputHandlingTests : TestContext, IDisposable
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "InputHandling")]
     public void InputBuffer_ShouldPreventInputSpam()
     {
         // Arrange: Set up input buffering system
@@ -265,6 +313,12 @@ public class InputHandlingTests : TestContext, IDisposable
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "InputHandling")]
     public void GamepadInput_ShouldBeSupported()
     {
         // Arrange: Set up gamepad detection
@@ -296,6 +350,12 @@ public class InputHandlingTests : TestContext, IDisposable
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "InputHandling")]
     public void AccessibilityInputs_ShouldBeSupported()
     {
         // Arrange: Set up accessibility input handling
@@ -322,6 +382,12 @@ public class InputHandlingTests : TestContext, IDisposable
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "InputHandling")]
     public void InputEventPrevention_ShouldStopBrowserDefaults()
     {
         // Arrange: Set up event prevention testing
@@ -348,6 +414,12 @@ public class InputHandlingTests : TestContext, IDisposable
     }
 
     [Fact]
+
+
+    [Trait("Category", "Component")]
+
+
+    [Trait("Feature", "InputHandling")]
     public void InputContextSwitching_ShouldHandleGameStateChanges()
     {
         // Arrange: Set up context switching

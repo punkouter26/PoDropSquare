@@ -1,0 +1,87 @@
+%% Sequence Diagram: Score Submission with Telemetry
+%% Shows the complete flow of submitting a game score including observability
+
+sequenceDiagram
+    autonumber
+    participant Player
+    participant BlazorWASM as Blazor WASM<br/>(Frontend)
+    participant MatterJS as Matter.js<br/>(Physics)
+    participant API as ASP.NET API<br/>(Backend)
+    participant OTel as OpenTelemetry<br/>(Tracing)
+    participant ScoreSvc as Score Service
+    participant ScoreRepo as Score Repository
+    participant TableStorage as Azure Table<br/>Storage
+    participant Serilog as Serilog<br/>(Logging)
+    participant AppInsights as Application<br/>Insights
+    
+    %% Game Play Phase
+    Player->>BlazorWASM: Click "Drop Block"
+    activate BlazorWASM
+    BlazorWASM->>MatterJS: engine.update()
+    activate MatterJS
+    MatterJS-->>BlazorWASM: Physics calculated
+    deactivate MatterJS
+    
+    BlazorWASM->>BlazorWASM: Update score locally
+    Note over BlazorWASM: Score: 1500<br/>Game ends
+    
+    %% Score Submission Phase
+    Player->>BlazorWASM: Enter initials "ABC"<br/>Click "Submit"
+    BlazorWASM->>AppInsights: trackEvent("ScoreSubmit")
+    BlazorWASM->>API: POST /api/scores<br/>{initials:"ABC", score:1500}
+    activate API
+    
+    API->>Serilog: Log("Score submission received")
+    Serilog->>AppInsights: Send trace
+    
+    API->>OTel: StartActivity("SubmitScore")
+    activate OTel
+    OTel->>OTel: Set tags: player=ABC, score=1500
+    
+    API->>ScoreSvc: SubmitScoreAsync(ABC, 1500)
+    activate ScoreSvc
+    
+    ScoreSvc->>ScoreRepo: SaveScoreAsync(scoreEntity)
+    activate ScoreRepo
+    
+    ScoreRepo->>TableStorage: InsertEntityAsync(entity)
+    activate TableStorage
+    alt Success
+        TableStorage-->>ScoreRepo: 201 Created
+        ScoreRepo-->>ScoreSvc: ScoreEntity (with ID)
+        ScoreSvc-->>API: ScoreResult {id, rank}
+        
+        API->>OTel: RecordMeter("scores.submitted", 1)
+        API->>Serilog: Log("Score saved successfully")
+        Serilog->>AppInsights: Send trace
+        
+        OTel->>OTel: EndActivity(Success)
+        OTel->>AppInsights: Send span
+        deactivate OTel
+        
+        API-->>BlazorWASM: 201 Created<br/>{id, rank: 5}
+        BlazorWASM->>AppInsights: trackEvent("ScoreSubmitted")
+        BlazorWASM-->>Player: "Score submitted!<br/>Rank: #5"
+        deactivate ScoreSvc
+        deactivate ScoreRepo
+        deactivate TableStorage
+        deactivate API
+        
+    else Storage Failure
+        TableStorage-->>ScoreRepo: 500 Error
+        ScoreRepo-->>ScoreSvc: Exception
+        ScoreSvc-->>API: Exception
+        
+        API->>Serilog: LogError("Failed to save", ex)
+        Serilog->>AppInsights: Send exception
+        
+        API->>OTel: EndActivity(Failed)
+        OTel->>AppInsights: Send span (failed)
+        
+        API-->>BlazorWASM: 500 Internal Error<br/>{detail: "Database unavailable"}
+        BlazorWASM->>AppInsights: trackException(error)
+        BlazorWASM-->>Player: "Error: Try again"
+    end
+    deactivate BlazorWASM
+    
+    Note over AppInsights: All telemetry correlated<br/>by operation_Id (W3C Trace)

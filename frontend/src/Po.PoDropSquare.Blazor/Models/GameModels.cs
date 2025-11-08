@@ -68,11 +68,18 @@ public class PlayerScore
 public class LeaderboardEntry
 {
     public int Rank { get; set; }
-    public string PlayerName { get; set; } = string.Empty;
-    public int Score { get; set; }
-    public TimeSpan GameDuration { get; set; }
-    public DateTime AchievedAt { get; set; }
+    public string PlayerInitials { get; set; } = string.Empty;
+    public double SurvivalTime { get; set; }
+    public string SubmittedAt { get; set; } = string.Empty;
+    public string ScoreId { get; set; } = string.Empty;
+    public int TotalSubmissions { get; set; }
     public bool IsCurrentPlayer { get; set; }
+
+    // Legacy properties for backward compatibility
+    public string PlayerName => PlayerInitials;
+    public int Score => (int)(SurvivalTime * 100); // Convert time to score for legacy views
+    public TimeSpan GameDuration => TimeSpan.FromSeconds(SurvivalTime);
+    public DateTime AchievedAt => DateTime.TryParse(SubmittedAt, out var date) ? date : DateTime.UtcNow;
 }
 
 /// <summary>

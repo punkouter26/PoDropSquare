@@ -23,6 +23,12 @@ public class GameplayIntegrationTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "GameplayIntegration")]
     public async Task CompleteGameplaySession_WithValidFlow_ShouldSucceed()
     {
         // Act: Start a new game session
@@ -90,6 +96,12 @@ public class GameplayIntegrationTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "GameplayIntegration")]
     public async Task GameSession_WithTimeout_ShouldEndAutomatically()
     {
         // Act: Start a game session
@@ -108,6 +120,12 @@ public class GameplayIntegrationTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "GameplayIntegration")]
     public async Task MultipleBlockPlacements_WithPhysicsValidation_ShouldMaintainConsistency()
     {
         // Arrange: Start game session
@@ -157,6 +175,12 @@ public class GameplayIntegrationTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "GameplayIntegration")]
     public async Task GameOverCondition_WhenBlocksReachTopLine_ShouldEndGame()
     {
         // Arrange: Start game session
@@ -186,6 +210,12 @@ public class GameplayIntegrationTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "GameplayIntegration")]
     public async Task ConcurrentGameSessions_ShouldBeIsolated()
     {
         // Act: Start two game sessions simultaneously
@@ -233,6 +263,12 @@ public class GameplayIntegrationTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "GameplayIntegration")]
     public async Task InvalidSessionId_ShouldReturnNotFound()
     {
         // Act: Try to place block with invalid session ID
@@ -252,6 +288,12 @@ public class GameplayIntegrationTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "GameplayIntegration")]
     public async Task ExpiredSession_ShouldNotAcceptNewBlocks()
     {
         // This test would require time manipulation or shorter session duration
@@ -265,6 +307,12 @@ public class GameplayIntegrationTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "GameplayIntegration")]
     public async Task GameStatistics_ShouldTrackAccurateMetrics()
     {
         // Act: Get game statistics

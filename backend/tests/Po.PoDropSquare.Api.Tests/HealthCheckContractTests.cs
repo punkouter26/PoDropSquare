@@ -21,6 +21,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_ShouldReturn200WhenHealthy()
     {
         // Act
@@ -41,6 +47,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_ShouldReturnDetailedHealthStatus()
     {
         // Act
@@ -61,6 +73,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_ShouldSetCorrectContentType()
     {
         // Act
@@ -72,6 +90,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_ResponseTime_ShouldBeFast()
     {
         // Arrange
@@ -90,6 +114,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_ShouldAllowAnonymousAccess()
     {
         // Health checks should not require authentication
@@ -104,6 +134,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_ShouldHandleMultipleConcurrentRequests()
     {
         // Arrange
@@ -127,6 +163,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_ShouldIncludeTimestamp()
     {
         // Act
@@ -145,6 +187,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_ShouldNotExposeInternalDetails()
     {
         // Act
@@ -163,6 +211,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_WithAcceptJson_ShouldReturnJson()
     {
         // Arrange
@@ -181,6 +235,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_ShouldBeCacheable()
     {
         // Act
@@ -201,6 +261,10 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
 
     // Test for when dependencies are unhealthy
     [Fact]
+
+    [Trait("Category", "Integration")]
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_WhenDependenciesUnhealthy_ShouldReturn503()
     {
         // This test verifies the contract when dependencies are down
@@ -227,6 +291,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_ShouldSupportHeadRequest()
     {
         // Arrange
@@ -244,6 +314,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public async Task GET_Health_ShouldHandleOptionsRequest()
     {
         // Arrange
@@ -275,6 +351,12 @@ public class HealthCheckContractTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
+
+
+    [Trait("Category", "Integration")]
+
+
+    [Trait("Feature", "HealthCheckContract")]
     public void CleanupResources()
     {
         Dispose(true);

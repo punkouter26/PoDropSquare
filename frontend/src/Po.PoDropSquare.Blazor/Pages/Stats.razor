@@ -1,0 +1,181 @@
+@page "/stats"
+@using Po.PoDropSquare.Blazor.Models
+@inject NavigationManager Navigation
+
+<PageTitle>PoDropSquare - Your Statistics</PageTitle>
+
+<div class="stats-page">
+    <div class="stats-header glass-card">
+        <h1>Your Statistics</h1>
+        <div class="time-range-selector">
+            <button class="@(_timeRange == "week" ? "active" : "")" 
+                    @onclick='() => SetTimeRange("week")'>This Week</button>
+            <button class="@(_timeRange == "month" ? "active" : "")" 
+                    @onclick='() => SetTimeRange("month")'>This Month</button>
+            <button class="@(_timeRange == "all" ? "active" : "")" 
+                    @onclick='() => SetTimeRange("all")'>All Time</button>
+        </div>
+        <div class="back-button">
+            <a href="/" class="retro-btn">Back to Game</a>
+        </div>
+    </div>
+    
+    <div class="stats-grid">
+        <!-- Key Metrics -->
+        <div class="stat-card glass-card">
+            <div class="stat-icon">🎮</div>
+            <div class="stat-value">@_totalGames</div>
+            <div class="stat-label">Games Played</div>
+        </div>
+        
+        <div class="stat-card glass-card">
+            <div class="stat-icon">🏆</div>
+            <div class="stat-value">@_totalWins</div>
+            <div class="stat-label">Victories</div>
+            @if (_winRateChange != 0)
+            {
+                <div class="stat-change @(_winRateChange > 0 ? "positive" : "negative")">
+                    @(_winRateChange > 0 ? "+" : "")@_winRateChange% vs last period
+                </div>
+            }
+        </div>
+        
+        <div class="stat-card glass-card">
+            <div class="stat-icon">⭐</div>
+            <div class="stat-value">@_bestTime.ToString("0.00")s</div>
+            <div class="stat-label">Personal Best</div>
+        </div>
+        
+        <div class="stat-card glass-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-value">@_avgTime.ToString("0.00")s</div>
+            <div class="stat-label">Average Time</div>
+        </div>
+    </div>
+    
+    <!-- Recent Games -->
+    <div class="recent-games glass-card">
+        <h3>Recent Games</h3>
+        <div class="games-list">
+            @foreach (var game in _recentGames)
+            {
+                <div class="game-row">
+                    <div class="game-date">@game.PlayedAt.ToString("MMM dd, HH:mm")</div>
+                    <div class="game-result @(game.IsVictory ? "victory" : "")">
+                        @(game.IsVictory ? "🏆 Victory" : "Game Over")
+                    </div>
+                    <div class="game-time">@game.SurvivalTime.ToString("0.00")s</div>
+                    <div class="game-blocks">@game.BlocksPlaced blocks</div>
+                </div>
+            }
+        </div>
+    </div>
+    
+    <!-- Achievements -->
+    <div class="achievements glass-card">
+        <h3>Achievements</h3>
+        <div class="achievements-grid">
+            <div class="achievement @(_totalGames >= 10 ? "unlocked" : "locked")">
+                <span class="achievement-icon">🎯</span>
+                <span class="achievement-name">Getting Started</span>
+                <span class="achievement-desc">Play 10 games</span>
+                <span class="achievement-progress">@_totalGames / 10</span>
+            </div>
+            
+            <div class="achievement @(_totalWins >= 1 ? "unlocked" : "locked")">
+                <span class="achievement-icon">🥇</span>
+                <span class="achievement-name">First Victory</span>
+                <span class="achievement-desc">Win your first game</span>
+                <span class="achievement-progress">@(_totalWins >= 1 ? "✓" : "0 / 1")</span>
+            </div>
+            
+            <div class="achievement @(_bestTime < 10 ? "unlocked" : "locked")">
+                <span class="achievement-icon">⚡</span>
+                <span class="achievement-name">Speed Demon</span>
+                <span class="achievement-desc">Win in under 10 seconds</span>
+                <span class="achievement-progress">@(_bestTime < 10 ? "✓" : $"{_bestTime:0.0}s")</span>
+            </div>
+            
+            <div class="achievement @(_consecutiveWins >= 5 ? "unlocked" : "locked")">
+                <span class="achievement-icon">🔥</span>
+                <span class="achievement-name">Hot Streak</span>
+                <span class="achievement-desc">Win 5 games in a row</span>
+                <span class="achievement-progress">@_consecutiveWins / 5</span>
+            </div>
+            
+            <div class="achievement @(_totalGames >= 50 ? "unlocked" : "locked")">
+                <span class="achievement-icon">💯</span>
+                <span class="achievement-name">Dedicated Player</span>
+                <span class="achievement-desc">Play 50 games</span>
+                <span class="achievement-progress">@_totalGames / 50</span>
+            </div>
+            
+            <div class="achievement @(_totalWins >= 25 ? "unlocked" : "locked")">
+                <span class="achievement-icon">👑</span>
+                <span class="achievement-name">Champion</span>
+                <span class="achievement-desc">Win 25 games</span>
+                <span class="achievement-progress">@_totalWins / 25</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _timeRange = "all";
+    
+    // Stats data (would load from localStorage or API)
+    private int _totalGames = 0;
+    private int _totalWins = 0;
+    private double _bestTime = 999.99;
+    private double _avgTime = 0;
+    private int _winRateChange = 0;
+    private int _consecutiveWins = 0;
+    
+    private List<GameRecord> _recentGames = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStats();
+    }
+
+    private async Task LoadStats()
+    {
+        // In a real app, this would load from localStorage or API
+        // For demo purposes, generate sample data
+        _totalGames = 23;
+        _totalWins = 7;
+        _bestTime = 8.45;
+        _avgTime = 15.32;
+        _winRateChange = 12;
+        _consecutiveWins = 3;
+        
+        _recentGames = new List<GameRecord>
+        {
+            new GameRecord { PlayedAt = DateTime.Now.AddHours(-1), IsVictory = true, SurvivalTime = 8.45, BlocksPlaced = 12 },
+            new GameRecord { PlayedAt = DateTime.Now.AddHours(-2), IsVictory = false, SurvivalTime = 5.23, BlocksPlaced = 8 },
+            new GameRecord { PlayedAt = DateTime.Now.AddHours(-3), IsVictory = true, SurvivalTime = 12.67, BlocksPlaced = 15 },
+            new GameRecord { PlayedAt = DateTime.Now.AddDays(-1), IsVictory = false, SurvivalTime = 3.12, BlocksPlaced = 5 },
+            new GameRecord { PlayedAt = DateTime.Now.AddDays(-1).AddHours(-2), IsVictory = true, SurvivalTime = 9.78, BlocksPlaced = 11 },
+            new GameRecord { PlayedAt = DateTime.Now.AddDays(-2), IsVictory = false, SurvivalTime = 6.45, BlocksPlaced = 7 },
+            new GameRecord { PlayedAt = DateTime.Now.AddDays(-2).AddHours(-5), IsVictory = false, SurvivalTime = 4.89, BlocksPlaced = 6 },
+            new GameRecord { PlayedAt = DateTime.Now.AddDays(-3), IsVictory = true, SurvivalTime = 11.23, BlocksPlaced = 14 },
+        };
+        
+        await Task.CompletedTask;
+    }
+
+    private async Task SetTimeRange(string range)
+    {
+        _timeRange = range;
+        await LoadStats(); // Would filter data by time range
+        StateHasChanged();
+    }
+
+    private class GameRecord
+    {
+        public DateTime PlayedAt { get; set; }
+        public bool IsVictory { get; set; }
+        public double SurvivalTime { get; set; }
+        public int BlocksPlaced { get; set; }
+    }
+}
