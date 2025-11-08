@@ -153,19 +153,20 @@ jobs:
           fi
 
       - name: 🚀 Deploy to Azure App Service
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: 'PoDropSquare'
-          package: ${{ env.PUBLISH_OUTPUT }}
-        continue-on-error: true
-        id: deploy
-        
-      - name: 🔄 Retry deployment if failed
-        if: steps.deploy.outcome == 'failure'
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: 'PoDropSquare'
-          package: ${{ env.PUBLISH_OUTPUT }}
+        run: |
+          echo "Deploying to Azure App Service using az webapp deployment..."
+          cd ${{ env.PUBLISH_OUTPUT }}
+          zip -r ../deploy.zip .
+          cd ..
+          
+          az webapp deployment source config-zip \
+            --resource-group PoDropSquare \
+            --name PoDropSquare \
+            --src deploy.zip \
+            --timeout 600
+            
+      - name: ⏳ Wait for deployment to stabilize
+        run: sleep 15
 
       - name: 🏥 Verify deployment health check
         run: |
