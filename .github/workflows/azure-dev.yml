@@ -137,7 +137,31 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      - name: 🔍 Verify App Service exists
+        run: |
+          echo "Checking if App Service 'PoDropSquare' exists..."
+          APP_STATE=$(az webapp show --name PoDropSquare --resource-group PoDropSquare --query "state" -o tsv)
+          echo "App Service state: $APP_STATE"
+          
+          if [ "$APP_STATE" != "Running" ]; then
+            echo "⚠️ Warning: App Service is not in Running state. Current state: $APP_STATE"
+            echo "Attempting to start the App Service..."
+            az webapp start --name PoDropSquare --resource-group PoDropSquare
+            sleep 10
+          else
+            echo "✅ App Service is running and ready for deployment"
+          fi
+
       - name: 🚀 Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'PoDropSquare'
+          package: ${{ env.PUBLISH_OUTPUT }}
+        continue-on-error: true
+        id: deploy
+        
+      - name: 🔄 Retry deployment if failed
+        if: steps.deploy.outcome == 'failure'
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'PoDropSquare'
