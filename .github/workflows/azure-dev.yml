@@ -104,7 +104,6 @@ jobs:
         run: |
           dotnet publish ${{ env.API_PROJECT_PATH }} \
             --configuration Release \
-            --no-build \
             --output ${{ env.PUBLISH_OUTPUT }} \
             --self-contained true \
             --runtime win-x86
